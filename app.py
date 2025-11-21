@@ -1,54 +1,66 @@
 import streamlit as st
 import time
+import datetime
 import requests
 
-# --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V19", layout="wide")
+# --- CONFIGURATION DE LA PAGE ---
+st.set_page_config(page_title="Estimateur Libert & Cie", layout="wide", page_icon="🏗️")
 
-# ==========================================
-# 1. BASE DE DONNÉES PRIX
-# ==========================================
+# ==============================================================================
+# 1. GESTION DE LA CLÉ API GOOGLE (Sécurisée)
+# ==============================================================================
+# Le code cherche la clé dans les "Secrets" ou permet de la rentrer manuellement
+try:
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+except:
+    GOOGLE_API_KEY = ""
+
+# ==============================================================================
+# 2. BASE DE PRIX & PÉDAGOGIE (BENCHMARK LIBERT 2025)
+# ==============================================================================
 DB_PRIX = {
     "LOGISTIQUE": {
-        "BASE_VIE": {"titre": "Base Vie Chantier", "pourquoi": "Roulotte & WC obligatoires.", "pu": 4500.00, "unit": "Forfait"},
-        "AUTORISATION": {"titre": "Taxes Voirie", "pourquoi": "Redevance occupation.", "pu": 605.00, "unit": "Forfait"},
-        "ECHAFAUDAGE": {"titre": "Échafaudage", "pourquoi": "Accès & Sécurité.", "pu": 39.90, "unit": "m²"},
-        "FILET": {"titre": "Filets", "pourquoi": "Protection chutes.", "pu": 13.00, "unit": "m²"}
+        "BASE_VIE": {"titre": "Installation & Base Vie", "pourquoi": "Roulotte, WC et protections obligatoires (Sécurité).", "pu": 4500.00, "unit": "Forfait"},
+        "AUTORISATION": {"titre": "Taxes de Voirie (ODP)", "pourquoi": "Redevance municipale pour occupation du trottoir.", "pu": 605.00, "unit": "Forfait"},
+        "ECHAFAUDAGE": {"titre": "Échafaudage Tubulaire", "pourquoi": "Structure Classe 4 avec filets pare-gravats.", "pu": 39.90, "unit": "m²"},
+        "FILET": {"titre": "Filets de protection", "pourquoi": "Protection chute d'objets (Obligatoire).", "pu": 13.00, "unit": "m²"}
     },
     "PLATRE_ANCIEN": { 
-        "NETTOYAGE": {"titre": "Décapage Chimique", "pourquoi": "Retrait peintures.", "pu": 16.50},
-        "PIOCHAGE": {"titre": "Purge Maçonnerie", "pourquoi": "Retrait parties mortes.", "pu": 150.00},
-        "FINITION": {"titre": "Finition Micro-Mortier", "pourquoi": "Respirant (Chaux).", "pu": 90.00},
-        "RATIO_DEGATS": 0.50
+        "NETTOYAGE": {"titre": "Décapage Chimique", "pourquoi": "Retrait des peintures sans abîmer le plâtre fragile.", "pu": 16.50},
+        "PIOCHAGE": {"titre": "Soin des Maçonneries (Purge)", "pourquoi": "Retrait des parties qui sonnent creux (Vital pour la tenue).", "pu": 150.00},
+        "FINITION": {"titre": "Finition Micro-Mortier", "pourquoi": "Revêtement respirant (Laisse sortir l'humidité).", "pu": 90.00},
+        "RATIO_DEGATS": 0.50 # 50% de la surface est souvent à refaire
     },
     "PIERRE_BRIQUE": { 
-        "NETTOYAGE": {"titre": "Hydrogommage", "pourquoi": "Gommage doux.", "pu": 25.00},
-        "PIOCHAGE": {"titre": "Ragréage Pierre", "pourquoi": "Reconstitution.", "pu": 37.50},
-        "FINITION": {"titre": "Minéralisation", "pourquoi": "Protection invisible.", "pu": 48.00},
+        "NETTOYAGE": {"titre": "Hydrogommage Doux", "pourquoi": "Gommage basse pression pour respecter le calin de la pierre.", "pu": 25.00},
+        "PIOCHAGE": {"titre": "Ragréage Pierre", "pourquoi": "Reconstitution des pierres abîmées au mortier spécial.", "pu": 37.50},
+        "FINITION": {"titre": "Minéralisation", "pourquoi": "Protection invisible qui durcit la pierre.", "pu": 48.00},
         "RATIO_DEGATS": 0.10
     },
     "MODERNE_BETON": { 
-        "NETTOYAGE": {"titre": "Lavage HP", "pourquoi": "Décrassage.", "pu": 12.00},
-        "PIOCHAGE": {"titre": "Traitement Fers", "pourquoi": "Passivation.", "pu": 37.50},
-        "FINITION": {"titre": "Revêtement D3", "pourquoi": "Imperméabilité.", "pu": 55.00},
+        "NETTOYAGE": {"titre": "Lavage Haute Pression", "pourquoi": "Décrassage profond de la pollution.", "pu": 12.00},
+        "PIOCHAGE": {"titre": "Traitement des fers", "pourquoi": "Passivation des aciers pour stopper la rouille.", "pu": 37.50},
+        "FINITION": {"titre": "Revêtement D3 Armé", "pourquoi": "Imperméabilité totale et souplesse (Anti-fissure).", "pu": 55.00},
         "RATIO_DEGATS": 0.05
     },
     "BOISERIE": {
-        "PORTE_COCHERE": {"titre": "Restauration Porte", "pourquoi": "Décapage & Lasure.", "pu": 3200.00, "unit": "Forfait"},
-        "PORTE_ENTREE": {"titre": "Peinture Porte", "pourquoi": "Laque tendue.", "pu": 850.00, "unit": "Forfait"}
+        "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "pourquoi": "Décapage, greffes de bois et lasure.", "pu": 3200.00, "unit": "Forfait"},
+        "PORTE_ENTREE": {"titre": "Peinture Porte Hall", "pourquoi": "Égrenage et laque tendue haute résistance.", "pu": 850.00, "unit": "Forfait"}
     },
     "ZINGUERIE": {
-        "APPUI": {"titre": "Appuis Zinc", "pourquoi": "Bavette neuve.", "pu": 210.00, "unit": "U"},
-        "DESCENTE": {"titre": "Descentes EP", "pourquoi": "Remplacement.", "pu": 165.00, "unit": "ml"},
-        "GARDE_CORPS": {"titre": "Peinture Fer", "pourquoi": "Antirouille.", "pu": 160.00, "unit": "U"},
-        "BANDEAU": {"titre": "Bandeaux Zinc", "pourquoi": "Couvre-murette.", "pu": 178.00, "unit": "ml"}
+        "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve pour rejeter l'eau loin de la façade.", "pu": 210.00, "unit": "U"},
+        "DESCENTE": {"titre": "Descentes EP", "pourquoi": "Remplacement Zinc/Fonte (Étanchéité garantie).", "pu": 165.00, "unit": "ml"},
+        "GARDE_CORPS": {"titre": "Peinture Garde-corps", "pourquoi": "Traitement antirouille indispensable.", "pu": 160.00, "unit": "U"},
+        "BANDEAU": {"titre": "Couvre-Murette Zinc", "pourquoi": "Protection des bandeaux saillants contre la pluie.", "pu": 178.00, "unit": "ml"}
     }
 }
 
-# ==========================================
-# 2. FONCTIONS API
-# ==========================================
+# ==============================================================================
+# 3. FONCTIONS INTELLIGENTES (API & IA)
+# ==============================================================================
+
 def get_adresses_api(query):
+    """Autocomplétion adresse via API Gouv"""
     if not query: return []
     url = f"https://api-adresse.data.gouv.fr/search/?q={query}&limit=5"
     try:
@@ -58,22 +70,30 @@ def get_adresses_api(query):
     except: return []
     return []
 
-def get_image_style(style):
-    # Images d'illustration fiables (Wikimedia)
-    if "Faubourien" in style: 
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/14_rue_Saint-S%C3%A9bastien_Paris_11.jpg/800px-14_rue_Saint-S%C3%A9bastien_Paris_11.jpg"
-    elif "Haussmannien" in style: 
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Paris_-_Immeuble_bld_Raspail.jpg/800px-Paris_-_Immeuble_bld_Raspail.jpg"
-    elif "Moderne" in style: 
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Immeuble_d%27habitation_HBM.jpg/800px-Immeuble_d%27habitation_HBM.jpg"
-    else: 
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
+def get_facade_image(adresse, style_backup, user_key=None):
+    """
+    Récupère la photo Google Street View avec réglages GRAND ANGLE.
+    """
+    # Priorité à la clé utilisateur si fournie dans la sidebar, sinon clé secrète
+    api_key = user_key if user_key else GOOGLE_API_KEY
+    
+    if api_key and len(api_key) > 10:
+        base_url = "https://maps.googleapis.com/maps/api/streetview"
+        # PARAMÈTRES AJUSTÉS VUE D'ENSEMBLE :
+        # fov=120 (Grand angle max)
+        # pitch=10 (Regarde vers le haut pour voir le toit)
+        params = f"?size=640x640&location={adresse}&fov=120&pitch=10&key={api_key}"
+        return f"{base_url}{params}"
+    
+    # SINON : Image illustrative (Backup)
+    if "Faubourien" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/14_rue_Saint-S%C3%A9bastien_Paris_11.jpg/800px-14_rue_Saint-S%C3%A9bastien_Paris_11.jpg"
+    elif "Haussmannien" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Paris_-_Immeuble_bld_Raspail.jpg/800px-Paris_-_Immeuble_bld_Raspail.jpg"
+    elif "Moderne" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Immeuble_d%27habitation_HBM.jpg/800px-Immeuble_d%27habitation_HBM.jpg"
+    else: return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
-# ==========================================
-# 3. INTELLIGENCE ARTIFICIELLE
-# ==========================================
-def proposition_ia(adresse):
-    ads = adresse.lower()
+def proposition_ia(adresse_choisie):
+    """Déduction du style et des dimensions selon l'adresse"""
+    ads = adresse_choisie.lower()
     if "sebastien" in ads or "faubourg" in ads:
         return {"style": "Faubourien (Plâtre)", "annee": "1850", "profil": "PLATRE_ANCIEN", "porte": "PORTE_COCHERE", "etages": 4, "largeur": 14}
     elif "pascal" in ads or "thibaud" in ads:
@@ -81,132 +101,166 @@ def proposition_ia(adresse):
     elif "general" in ads or "leclerc" in ads:
         return {"style": "Moderne (Béton)", "annee": "1970", "profil": "MODERNE_BETON", "porte": "PORTE_ENTREE", "etages": 7, "largeur": 22}
     else:
-        # Par défaut Haussmann
+        # Par défaut
         return {"style": "Haussmannien (Pierre)", "annee": "1890", "profil": "PIERRE_BRIQUE", "porte": "PORTE_COCHERE", "etages": 6, "largeur": 16}
 
-# ==========================================
-# 4. INTERFACE
-# ==========================================
-# Initialisation session
+# ==============================================================================
+# 4. INTERFACE UTILISATEUR (STREAMLIT)
+# ==============================================================================
+
+# --- SIDEBAR (Réglages) ---
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/10967/10967633.png", width=50)
+    st.header("Paramètres")
+    
+    # Zone pour mettre la clé manuellement si besoin
+    user_api_key = st.text_input("Clé API Google (Optionnel)", type="password", help="Collez votre clé ici si vous n'utilisez pas les secrets.")
+    
+    st.divider()
+    st.info("L'IA pré-remplit les dimensions ci-dessous une fois l'adresse choisie. Vous pouvez les corriger.")
+    
+    # Conteneur vide qui sera rempli après l'analyse
+    container_params = st.container()
+
+# --- MAIN PAGE ---
+st.title("🏡 Estimateur Façade Libert & Cie")
+st.markdown("### Diagnostic Instantané & Devis Détaillé")
+
+# Gestion de l'état (Session State)
 if 'adresse_input' not in st.session_state: st.session_state.adresse_input = ""
 if 'data_ia' not in st.session_state: st.session_state.data_ia = None
 
-# Sidebar
-with st.sidebar:
-    st.header("🔧 Paramètres")
-    # Conteneur pour les réglages dynamiques
-    container_params = st.container()
+# Zone Recherche
+col1, col2 = st.columns([3, 1])
+with col1:
+    search = st.text_input("Entrez l'adresse du bâtiment :", placeholder="Ex: 159 rue du faubourg saint antoine...", value=st.session_state.adresse_input)
+    # Menu déroulant API Gouv
+    if search and len(search) > 4:
+        opts = get_adresses_api(search)
+        if opts: final_addr = st.selectbox("📍 Sélectionnez l'adresse exacte :", opts)
+        else: final_addr = search
+    else:
+        final_addr = None
 
-st.title("🏡 Estimateur Façade Libert")
+with col2:
+    st.write("") 
+    st.write("") 
+    launch = st.button("LANCER L'AUDIT", type="primary", use_container_width=True)
 
-# Recherche
-col_s, col_b = st.columns([3, 1])
-with col_s:
-    query = st.text_input("Adresse :", placeholder="Tapez une adresse...", value=st.session_state.adresse_input)
-    # Liste déroulante si recherche
-    sel_addr = None
-    if query and len(query) > 3:
-        opts = get_adresses_api(query)
-        if opts: sel_addr = st.selectbox("📍 Confirmer l'adresse :", opts)
-    
-with col_b:
-    st.write("")
-    st.write("")
-    if st.button("ANALYSER", type="primary", use_container_width=True):
-        if sel_addr:
-            st.session_state.data_ia = proposition_ia(sel_addr)
-            st.session_state.adresse_input = sel_addr
-        elif query:
-            # Force l'analyse même sans selection menu déroulant
-            st.session_state.data_ia = proposition_ia(query)
-            st.session_state.adresse_input = query
+if launch and final_addr:
+    st.session_state.data_ia = proposition_ia(final_addr)
+    st.session_state.adresse_input = final_addr
 
-# RÉSULTATS
+# --- AFFICHAGE DES RÉSULTATS ---
 if st.session_state.data_ia:
     d = st.session_state.data_ia
     
-    # -- SIDEBAR DYNAMIQUE --
+    # 1. BARRE LATÉRALE DYNAMIQUE (Correction Manuelle)
     with container_params:
-        st.subheader("Dimensions")
-        v_etages = st.number_input("Niveaux (R+)", value=d['etages'], min_value=1)
-        v_largeur = st.number_input("Largeur (m)", value=d['largeur'], min_value=5)
+        val_etages = st.number_input("Niveaux (R+)", value=d['etages'], min_value=1, step=1)
+        val_largeur = st.number_input("Largeur Façade (m)", value=d['largeur'], min_value=5, step=1)
         
-        # Calculs
-        h_calc = v_etages * 3.0
-        s_calc = int(h_calc * v_largeur)
+        # Calculs en temps réel
+        hauteur_calc = val_etages * 3.0
+        s_calc = int(hauteur_calc * val_largeur)
         nb_fen = int(s_calc / 12)
-        ml_ep = int(h_calc)
         
-        st.metric("Surface", f"{s_calc} m²")
-        st.caption(f"Hauteur: {h_calc}m")
+        st.divider()
+        st.metric("📏 Surface Calculée", f"{s_calc} m²")
+        st.caption(f"Hauteur estimée : {hauteur_calc}m")
 
-    # -- VISUEL --
+    # 2. CONTENU PRINCIPAL
     st.divider()
-    c_img, c_txt = st.columns([1, 2])
+    
+    # BLOC VISUEL
+    c_img, c_info = st.columns([1, 1.5])
     with c_img:
-        try:
-            # Tentative affichage clé Google si dispo
-            key = st.secrets["GOOGLE_API_KEY"]
-            url = f"https://maps.googleapis.com/maps/api/streetview?size=600x400&location={st.session_state.adresse_input}&key={key}"
-            st.image(url, use_column_width=True)
-        except:
-            # Fallback image illustration
-            st.image(get_image_style(d['style']), caption="Style détecté", use_column_width=True)
-            
-    with c_txt:
-        st.subheader(st.session_state.adresse_input)
-        st.success(f"**Typologie :** {d['style']}")
+        # Appel de l'image (avec clé utilisateur ou secrète)
+        img_src = get_facade_image(st.session_state.adresse_input, d['style'], user_api_key)
+        st.image(img_src, caption="Vue Grand Angle (IA)", use_column_width=True)
         
-        k1, k2 = st.columns(2)
+    with c_info:
+        st.subheader(f"Rapport pour : {st.session_state.adresse_input}")
+        st.success(f"**Architecture identifiée :** {d['style']}")
+        
+        # Indicateurs
+        k1, k2, k3 = st.columns(3)
         k1.metric("Année", d['annee'])
-        k2.metric("Ouvertures", f"{nb_fen} fenêtres")
+        k2.metric("Niveaux", f"R+{val_etages-1}")
+        k3.metric("Ouvertures", f"{nb_fen} fenêtres")
+        
+        st.info("💡 **Note :** L'estimation ci-dessous inclut le traitement spécifique des points singuliers (zinguerie, menuiseries) détectés pour ce type de bâtiment.")
 
-    # -- DEVIS --
-    st.subheader("📑 Devis Estimatif")
+    # 3. DEVIS DÉTAILLÉ (PÉDAGOGIQUE)
+    st.markdown("### 📑 Détail de l'Investissement")
     
     profil = DB_PRIX[d['profil']]
     total_ht = 0
     
-    def ligne(icon, key, cat, qte, unit=None):
+    def ligne_devis(icon, key, cat, qte, unit=None):
+        # Sécurité clé
         if key not in DB_PRIX[cat]: return 0
+        
         item = DB_PRIX[cat][key]
         u = unit if unit else item.get('unit', 'm²')
         tot = qte * item['pu']
         
         with st.container():
             c1, c2, c3 = st.columns([3, 1, 1])
-            c1.markdown(f"**{icon} {item['titre']}** \n<span style='color:gray;font-size:0.8em'>{item['pourquoi']}</span>", unsafe_allow_html=True)
-            c2.markdown(f"<div style='text-align:center;padding-top:10px'>{qte} {u}</div>", unsafe_allow_html=True)
-            c3.markdown(f"<div style='text-align:right;font-weight:bold;padding-top:10px'>{tot:,.2f} €</div>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin:5px 0;opacity:0.1'>", unsafe_allow_html=True)
+            with c1:
+                st.markdown(f"**{icon} {item['titre']}**")
+                st.caption(f"ℹ️ {item['pourquoi']}")
+            with c2:
+                st.markdown(f"<div style='text-align:center; padding-top:5px;'>{qte} {u}</div>", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"<div style='text-align:right; font-weight:bold; color:#2c3e50;'>{tot:,.2f} €</div>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin:5px 0; opacity:0.1;'>", unsafe_allow_html=True)
         return tot
 
-    st.markdown("##### 1. Logistique")
-    total_ht += ligne("🚧", "BASE_VIE", "LOGISTIQUE", 1, "Forfait")
-    total_ht += ligne("🛡️", "ECHAFAUDAGE", "LOGISTIQUE", s_calc)
-    total_ht += ligne("📜", "AUTORISATION", "LOGISTIQUE", 1, "Forfait")
+    # SECTION 1
+    st.markdown("#### 1️⃣ Installation & Sécurité")
+    total_ht += ligne_devis("🚧", "BASE_VIE", "LOGISTIQUE", 1, "Forfait")
+    total_ht += ligne_devis("🛡️", "ECHAFAUDAGE", "LOGISTIQUE", s_calc)
+    total_ht += ligne_devis("📜", "AUTORISATION", "LOGISTIQUE", 1, "Forfait")
 
-    st.markdown("##### 2. Façade")
-    total_ht += ligne("💦", "NETTOYAGE", d['profil'], s_calc)
+    # SECTION 2
+    st.markdown("#### 2️⃣ Traitement de Façade")
+    total_ht += ligne_devis("💦", "NETTOYAGE", d['profil'], s_calc)
+    
+    # Piochage (Calcul critique)
     s_pioch = int(s_calc * profil["RATIO_DEGATS"])
-    total_ht += ligne("🧱", "PIOCHAGE", d['profil'], s_pioch)
-    total_ht += ligne("🎨", "FINITION", d['profil'], s_calc)
+    # Personnalisation du titre si gros dégâts
+    titre_pioch = "Soin des Maçonneries"
+    if profil["RATIO_DEGATS"] >= 0.5: titre_pioch = "⚠️ Réfection Lourde des Fonds"
+    
+    # On hacke un peu pour afficher le bon titre
+    DB_PRIX[d['profil']]["PIOCHAGE"]["titre"] = titre_pioch
+    
+    total_ht += ligne_devis("🧱", "PIOCHAGE", d['profil'], s_pioch)
+    total_ht += ligne_devis("🎨", "FINITION", d['profil'], s_calc)
 
-    st.markdown("##### 3. Finitions")
-    total_ht += ligne("🚪", d['porte'], "BOISERIE", 1, "U")
-    total_ht += ligne("🌧️", "APPUI", "ZINGUERIE", nb_fen, "U")
-    total_ht += ligne("⬇️", "DESCENTE", "ZINGUERIE", ml_ep, "ml")
-    total_ht += ligne("🖌️", "GARDE_CORPS", "ZINGUERIE", int(nb_fen*0.7), "U")
-    # Ajout Bandeau manquant
-    total_ht += ligne("🏛️", "BANDEAU", "ZINGUERIE", int(v_largeur*2), "ml")
+    # SECTION 3
+    st.markdown("#### 3️⃣ Finitions & Détails")
+    total_ht += ligne_devis("🚪", d['porte'], "BOISERIE", 1, "U")
+    total_ht += ligne_devis("🌧️", "APPUI", "ZINGUERIE", nb_fen, "U")
+    total_ht += ligne_devis("⬇️", "DESCENTE", "ZINGUERIE", int(hauteur_calc), "ml")
+    # Bandeau (estimé largeur x 2)
+    total_ht += ligne_devis("🏛️", "BANDEAU", "ZINGUERIE", int(val_largeur*2), "ml")
+    # Garde-corps (70% des fenêtres)
+    total_ht += ligne_devis("🖌️", "GARDE_CORPS", "ZINGUERIE", int(nb_fen*0.7), "U")
 
-    # TOTAL
+    # TOTAL FINAL
     st.markdown("---")
-    col_fin_l, col_fin_r = st.columns([2,1])
-    with col_fin_r:
+    col_fin_txt, col_fin_prix = st.columns([2, 1])
+    with col_fin_prix:
         st.markdown(f"""
-        <div style="background:#2c3e50;color:white;padding:15px;border-radius:5px;text-align:right">
-            <div style="font-size:0.8em">TOTAL HT</div>
-            <div style="font-size:1.5em;font-weight:bold">{total_ht:,.2f} €</div>
+        <div style="background:#2c3e50; color:white; padding:20px; border-radius:8px; text-align:right;">
+            <div style="font-size:0.9em; opacity:0.8;">TOTAL ESTIMATIF HT</div>
+            <div style="font-size:1.8em; font-weight:bold;">{total_ht:,.2f} €</div>
         </div>
         """, unsafe_allow_html=True)
+    with col_fin_txt:
+        st.caption("⚠️ Estimation indicative basée sur une analyse visuelle et algorithmique. Ce document ne vaut pas contrat. Une visite technique est obligatoire pour valider les supports (notamment l'état réel des plâtres et l'adhérence). TVA non incluse.")
+
+elif launch:
+    st.warning("Veuillez sélectionner une adresse dans la liste.")
