@@ -3,7 +3,7 @@ import time
 import requests
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V30 (Stable)", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="Estimateur Libert V32 (Prix Réels)", layout="wide", page_icon="💰")
 
 # ==============================================================================
 # 🔑 API GOOGLE (VOTRE CLÉ)
@@ -14,24 +14,50 @@ except:
     GOOGLE_API_KEY = ""
 
 # ==============================================================================
-# 1. BASE DE PRIX (CORRIGÉE AVEC ALARME)
+# 1. BASE DE PRIX "LIBERT & CIE" (DONNÉES RÉELLES EXTRAITES)
 # ==============================================================================
 DB_PRIX = {
     "LOGISTIQUE": {
-        "BASE_VIE": {"titre": "Installation & Base Vie", "pourquoi": "Roulotte, WC, Cantonnement.", "pu": 4500.00, "unit": "Forfait"},
-        "AUTORISATION": {"titre": "Taxes Voirie", "pourquoi": "Redevance municipale.", "pu": 605.00, "unit": "Forfait"},
-        "ECHAFAUDAGE": {"titre": "Échafaudage Tubulaire", "pourquoi": "Classe 4 + filets.", "pu": 39.90, "unit": "m²"},
+        "BASE_VIE": {"titre": "Installation & Cantonnement", "pourquoi": "Roulotte, WC, Raccordements, Taxes voirie (Ref Devis 1145).", "pu": 4500.00, "unit": "Forfait"},
+        "ECHAFAUDAGE": {"titre": "Échafaudage Tubulaire", "pourquoi": "Classe 4 + Filets + Plancher étanche (Ref Devis 1088).", "pu": 40.00, "unit": "m²"},
         "ECHAFAUDAGE_PAV": {"titre": "Échafaudage Léger", "pourquoi": "Structure adaptée pavillon.", "pu": 28.00, "unit": "m²"},
-        "TUNNEL": {"titre": "Tunnel Public", "pourquoi": "Sécurité piétons (Commerce).", "pu": 60.00, "unit": "ml"},
-        "ALARME": {"titre": "Alarme Échafaudage", "pourquoi": "Système anti-intrusion 24/7.", "pu": 2070.00, "unit": "Forfait"}, # <--- RAJOUTÉ ICI
+        "TUNNEL": {"titre": "Tunnel Protection Public", "pourquoi": "Sécurité piétons obligatoire si commerce.", "pu": 65.00, "unit": "ml"},
+        "ALARME": {"titre": "Alarme Échafaudage", "pourquoi": "Système anti-intrusion 24/7 (Ref Devis 1088).", "pu": 2070.00, "unit": "Forfait"},
         "MAJORATION_HAUTEUR": {"titre": "Majoration Grande Hauteur", "pourquoi": "Manutention > R+5.", "pu": 15.00, "unit": "m²"}
     },
     "FACADES": { 
-        "PLATRE_ANCIEN": {"titre": "Restauration Plâtre (Lourd)", "nettoyage": 16.50, "piochage": 150.00, "finition": 95.00, "ratio_degats": 0.50, "desc": "Décapage + Purge maçonnerie + Micro-mortier"},
-        "PIERRE_TAILLE": {"titre": "Ravalement Pierre de Taille", "nettoyage": 28.00, "piochage": 85.00, "finition": 48.00, "ratio_degats": 0.10, "desc": "Hydrogommage + Ragréage + Minéralisation"},
-        "BRIQUE": {"titre": "Restauration Brique", "nettoyage": 35.00, "piochage": 120.00, "finition": 25.00, "ratio_degats": 0.15, "desc": "Nettoyage chimique + Changement briques + Hydrofuge"},
-        "BETON": {"titre": "Ravalement Technique D3", "nettoyage": 12.00, "piochage": 45.00, "finition": 58.00, "ratio_degats": 0.05, "desc": "Lavage HP + Passivation fers + RPE Armé"},
-        "PAVILLON_ENDUIT": {"titre": "Ravalement Maison I3", "nettoyage": 18.00, "piochage": 45.00, "finition": 42.00, "ratio_degats": 0.10, "desc": "Lavage + Reprise fissures + RPE Souple"}
+        "PLATRE_ANCIEN": { # PRIX FORTS (Source Devis 859/1088)
+            "titre": "Restauration Plâtre (Traditionnel)", 
+            "nettoyage": 16.50, # Décapage
+            "piochage": 160.00, # Moyenne haute (150-165€) pour sécurité
+            "finition": 95.00,  # Micro-mortier chaux
+            "ratio_degats": 0.50, 
+            "desc": "Décapage + Purge lourde maçonneries + Micro-mortier"
+        },
+        "PIERRE_TAILLE": { # PRIX MOYENS
+            "titre": "Ravalement Pierre de Taille", 
+            "nettoyage": 28.00, # Hydrogommage
+            "piochage": 85.00,  # Ragréage pierre
+            "finition": 48.00,  # Minéralisation
+            "ratio_degats": 0.10, 
+            "desc": "Hydrogommage doux + Ragréage ponctuel + Minéralisation"
+        },
+        "BETON": { # PRIX STANDARDS (Source Devis 1145 - partie ciment)
+            "titre": "Ravalement Technique D3", 
+            "nettoyage": 12.00, # Lavage HP
+            "piochage": 38.00,  # Purge ciment (37.50 arrondi)
+            "finition": 58.00,  # D3 Armé
+            "ratio_degats": 0.05, 
+            "desc": "Lavage HP + Passivation fers + RPE Armé"
+        },
+        "PAVILLON_ENDUIT": {
+            "titre": "Ravalement Maison I3", 
+            "nettoyage": 18.00, 
+            "piochage": 45.00, 
+            "finition": 42.00, 
+            "ratio_degats": 0.10, 
+            "desc": "Lavage + Reprise fissures + RPE Souple"
+        }
     },
     "BOISERIE": {
         "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "pourquoi": "Décapage, greffes, lasure.", "pu": 3200.00, "unit": "U"},
@@ -39,10 +65,10 @@ DB_PRIX = {
         "DEBORD_TOIT": {"titre": "Lasure Débords de Toit", "pourquoi": "Protection planches de rive.", "pu": 45.00, "unit": "ml"}
     },
     "ZINGUERIE": {
-        "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve.", "pu": 215.00, "unit": "U"},
-        "DESCENTE": {"titre": "Descentes EP", "pourquoi": "Remplacement Zinc/Fonte.", "pu": 165.00, "unit": "ml"},
-        "GARDE_CORPS": {"titre": "Peinture Garde-corps", "pourquoi": "Traitement antirouille.", "pu": 160.00, "unit": "U"},
-        "BANDEAU": {"titre": "Couvre-Murette (Zinc)", "pourquoi": "Protection bandeaux.", "pu": 178.00, "unit": "ml"},
+        "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve (Ref Devis 1145).", "pu": 215.00, "unit": "U"},
+        "DESCENTE": {"titre": "Descentes EP", "pourquoi": "Remplacement Zinc/Fonte (Ref Devis 1145).", "pu": 165.00, "unit": "ml"},
+        "GARDE_CORPS": {"titre": "Peinture Garde-corps", "pourquoi": "Traitement antirouille (Ref Devis 1088).", "pu": 120.00, "unit": "U"}, # Ajusté à 120€ selon devis
+        "BANDEAU": {"titre": "Couvre-Murette (Zinc)", "pourquoi": "Protection bandeaux (Ref Devis 1145).", "pu": 178.00, "unit": "ml"},
         "CHIEN_ASSIS": {"titre": "Habillage Chien-Assis", "pourquoi": "Rénovation zinc lucarne.", "pu": 950.00, "unit": "U"}
     }
 }
@@ -71,7 +97,7 @@ def pre_analyse_ia(adresse):
         etages = 5
         largeur = 15
         if "sebastien" in ads or "faubourg" in ads: profil = "PLATRE_ANCIEN"
-        elif "pascal" in ads: profil = "BRIQUE"
+        elif "pascal" in ads: profil = "PIERRE_TAILLE" # Corrigé pour matcher DB_PRIX
         elif "general" in ads: profil = "BETON"
         else: profil = "PIERRE_TAILLE"
         return {"type": type_bien, "profil": profil, "etages": etages, "largeur": largeur, "annee": "Inconnue"}
@@ -80,7 +106,7 @@ def pre_analyse_ia(adresse):
 # 3. INTERFACE UTILISATEUR
 # ==============================================================================
 
-# GESTION DE L'ÉTAT DE LA CAMÉRA
+# GESTION CAMÉRA
 if 'cam_heading' not in st.session_state: st.session_state.cam_heading = 0
 if 'cam_pitch' not in st.session_state: st.session_state.cam_pitch = 10
 
@@ -103,7 +129,7 @@ with st.sidebar:
     container_config = st.container()
 
 # --- MAIN ---
-st.title("🏢 Estimateur Libert V30 (Correctif Alarme)")
+st.title("🏢 Estimateur Libert V32 (Prix Réels)")
 
 if 'addr' not in st.session_state: st.session_state.addr = ""
 if 'ia_data' not in st.session_state: st.session_state.ia_data = None
@@ -139,6 +165,7 @@ if st.session_state.ia_data:
         
         st.subheader("2. Matériau")
         opts_mat = list(DB_PRIX["FACADES"].keys())
+        # Sécurité si profil inconnu
         idx_mat = opts_mat.index(d['profil']) if d['profil'] in opts_mat else 0
         v_profil = st.selectbox("Support dominant", opts_mat, index=idx_mat)
         
@@ -177,7 +204,7 @@ if st.session_state.ia_data:
         m3.metric("Points Spéciaux", f"{v_fenetres + v_chiens} U")
 
     # --- DEVIS ---
-    st.markdown("### 📑 Devis Détaillé")
+    st.markdown("### 📑 Devis Détaillé (Prix Libert)")
     total = 0
     prof_data = DB_PRIX["FACADES"][v_profil]
     
@@ -193,7 +220,7 @@ if st.session_state.ia_data:
         
         with st.container():
             c1, c2, c3 = st.columns([3, 1, 1])
-            c1.markdown(f"**{icon} {i['titre']}**\n<span style='color:grey;font-size:0.8em'>{i['pourquoi']}</span>", unsafe_allow_html=True)
+            c1.markdown(f"**{icon} {i['titre']}**\n<br><span style='color:grey;font-size:0.8em'>{i['pourquoi']}</span>", unsafe_allow_html=True)
             c2.markdown(f"<div style='text-align:center'>{int(qty)} {unit}</div>", unsafe_allow_html=True)
             c3.markdown(f"<div style='text-align:right'><b>{p:,.2f} €</b></div>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
@@ -206,22 +233,23 @@ if st.session_state.ia_data:
     else:
         total += add_line("🚧", "BASE_VIE", "LOGISTIQUE", 1)
         total += add_line("🛡️", "ECHAFAUDAGE", "LOGISTIQUE", calc_s)
+        # Note : Pas de taxe voirie si pas de rue mentionnée, mais on le met par défaut pour Immeuble
         total += add_line("📜", "AUTORISATION", "LOGISTIQUE", 1)
     
     if v_com: total += add_line("🚇", "TUNNEL", "LOGISTIQUE", v_largeur)
-    # CORRECTION ICI : On vérifie bien que l'option est activée ET que c'est un immeuble
     if v_alarme and v_type == "IMMEUBLE": total += add_line("🚨", "ALARME", "LOGISTIQUE", 1)
     if v_etages > 6: total += add_line("🏗️", "MAJORATION_HAUTEUR", "LOGISTIQUE", calc_s)
 
     # FAÇADE
     st.markdown("##### 2. Traitement")
-    total += add_line("💦", "NETTOYAGE", "FACADES", calc_s) # Corrigé: Utilise clé FACADES générique ? Non, structure complexe.
-    # Correction accès dictionnaire imbriqué
-    # On utilise prof_data direct pour le nettoyage/piochage/finition car ils sont dans FACADES -> TYPE
+    total += add_line("💦", "NETTOYAGE", "FACADES", calc_s) # On utilise prof_data pour les valeurs mais la fonction a besoin de la catégorie générique ? Non, ici on doit gérer le cas particulier des structures imbriquées.
+    
+    # CORRECTION APPEL PRIX FACADE
+    # Comme la structure FACADES contient des sous-dictionnaires, on ne peut pas utiliser add_line générique facilement ici
+    # On le fait manuellement pour cette section pour éviter l'erreur
     
     # Nettoyage
     p_net = calc_s * prof_data["nettoyage"]
-    # Affichage manuel car structure différente
     with st.container():
         c1, c2, c3 = st.columns([3, 1, 1])
         c1.markdown(f"**💦 Nettoyage Support**\n<span style='color:grey;font-size:0.8em'>{prof_data['desc']}</span>", unsafe_allow_html=True)
@@ -232,7 +260,9 @@ if st.session_state.ia_data:
 
     # Piochage
     s_pioch = int(calc_s * prof_data["ratio_degats"])
+    if v_chiens > 0 and v_profil == "PLATRE_ANCIEN": s_pioch = int(calc_s * 0.60) # Majoration si toiture complexe sur plâtre
     p_pioch = s_pioch * prof_data["piochage"]
+    
     with st.container():
         c1, c2, c3 = st.columns([3, 1, 1])
         c1.markdown(f"**🧱 Soin des Maçonneries (Purge)**\n<span style='color:grey;font-size:0.8em'>Ratio dégâts estimé : {int(prof_data['ratio_degats']*100)}%</span>", unsafe_allow_html=True)
