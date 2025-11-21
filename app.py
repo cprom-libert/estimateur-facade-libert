@@ -7,11 +7,13 @@ import requests
 st.set_page_config(page_title="Estimateur Libert V18 (Google Connected)", layout="wide")
 
 # ==============================================================================
-# 🔑 ZONE DE CONFIGURATION (COLLEZ VOTRE CLÉ CI-DESSOUS)
+# 🔑 RÉCUPÉRATION SÉCURISÉE DE LA CLÉ (VIA SECRETS STREAMLIT)
 # ==============================================================================
-GOOGLE_API_KEY = "AIzaSyAzlkVpcASo5K2vyIL1pU0brmgNbqnQzxQ" 
-# Gardez les guillemets ! Ex: "AIzaSyD5J..."
-# ==============================================================================
+try:
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+except:
+    st.error("Clé API non trouvée. Avez-vous bien configuré les Secrets sur Streamlit Cloud ?")
+    GOOGLE_API_KEY = ""
 
 # ==========================================
 # 1. BASE DE PRIX (BENCHMARK LIBERT)
