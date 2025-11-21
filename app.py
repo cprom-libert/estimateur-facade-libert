@@ -4,7 +4,7 @@ import datetime
 import requests
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V22 (Fix)", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="Estimateur Libert V23 (Stable)", layout="wide", page_icon="🏗️")
 
 # ==============================================================================
 # 🔑 CONFIGURATION API
@@ -15,7 +15,7 @@ except:
     GOOGLE_API_KEY = "" 
 
 # ==============================================================================
-# 1. BASE DE PRIX "LIBERT 2025"
+# 1. BASE DE PRIX "LIBERT 2025" (CORRIGÉE : UNITÉS AJOUTÉES)
 # ==============================================================================
 DB_PRIX = {
     "LOGISTIQUE": {
@@ -25,16 +25,22 @@ DB_PRIX = {
         "MAJORATION_HAUTEUR": {"titre": "Majoration Grande Hauteur", "pourquoi": "Manutention supplémentaire au-delà de R+5.", "pu": 15.00, "unit": "m²"}
     },
     "PLATRE_ANCIEN": { 
-        "NETTOYAGE": {"titre": "Décapage Chimique", "pourquoi": "Retrait peintures sans abîmer le plâtre.", "pu": 16.50},
-        "PIOCHAGE": {"titre": "Soin des Maçonneries (Purge)", "pourquoi": "Retrait des parties sonnant le creux.", "pu": 150.00},
-        "FINITION": {"titre": "Finition Micro-Mortier", "pourquoi": "Revêtement respirant (Chaux).", "pu": 90.00},
+        "NETTOYAGE": {"titre": "Décapage Chimique", "pourquoi": "Retrait peintures sans abîmer le plâtre.", "pu": 16.50, "unit": "m²"},
+        "PIOCHAGE": {"titre": "Soin des Maçonneries (Purge)", "pourquoi": "Retrait des parties sonnant le creux.", "pu": 150.00, "unit": "m²"},
+        "FINITION": {"titre": "Finition Micro-Mortier", "pourquoi": "Revêtement respirant (Chaux).", "pu": 90.00, "unit": "m²"},
         "RATIO_DEGATS": 0.50
     },
     "PIERRE_BRIQUE": { 
-        "NETTOYAGE": {"titre": "Hydrogommage Doux", "pourquoi": "Gommage basse pression.", "pu": 25.00},
-        "PIOCHAGE": {"titre": "Ragréage Pierre", "pourquoi": "Reconstitution au mortier pierre.", "pu": 37.50},
-        "FINITION": {"titre": "Minéralisation", "pourquoi": "Protection invisible durcissante.", "pu": 48.00},
+        "NETTOYAGE": {"titre": "Hydrogommage Doux", "pourquoi": "Gommage basse pression.", "pu": 25.00, "unit": "m²"},
+        "PIOCHAGE": {"titre": "Ragréage Pierre", "pourquoi": "Reconstitution au mortier pierre.", "pu": 37.50, "unit": "m²"},
+        "FINITION": {"titre": "Minéralisation", "pourquoi": "Protection invisible durcissante.", "pu": 48.00, "unit": "m²"},
         "RATIO_DEGATS": 0.10
+    },
+    "MODERNE_BETON": { 
+        "NETTOYAGE": {"titre": "Lavage Haute Pression", "pourquoi": "Décrassage profond.", "pu": 12.00, "unit": "m²"},
+        "PIOCHAGE": {"titre": "Traitement des fers", "pourquoi": "Passivation des aciers.", "pu": 37.50, "unit": "m²"},
+        "FINITION": {"titre": "Revêtement D3 Armé", "pourquoi": "Imperméabilité et souplesse.", "pu": 55.00, "unit": "m²"},
+        "RATIO_DEGATS": 0.05
     },
     "ZINGUERIE": {
         "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve avec larmier.", "pu": 210.00, "unit": "U"},
@@ -45,7 +51,7 @@ DB_PRIX = {
 }
 
 # ==============================================================================
-# 2. FONCTIONS API & IMAGE (C'est ici que j'ai corrigé l'erreur)
+# 2. FONCTIONS API & IMAGE
 # ==============================================================================
 def get_adresses_api(query):
     if not query: return []
@@ -56,15 +62,11 @@ def get_adresses_api(query):
     except: return []
 
 def get_facade_image(adresse, style_backup, heading=0, pitch=10):
-    """
-    Récupère l'image Google Street View.
-    CORRECTION : Accepte maintenant 'style_backup' comme argument.
-    """
     if GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 10:
         base = "https://maps.googleapis.com/maps/api/streetview"
         return f"{base}?size=640x640&location={adresse}&fov=100&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
     
-    # Images de secours (Wikimedia)
+    # Images de secours
     if "Faubourien" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/14_rue_Saint-S%C3%A9bastien_Paris_11.jpg/800px-14_rue_Saint-S%C3%A9bastien_Paris_11.jpg"
     elif "Haussmannien" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Paris_-_Immeuble_bld_Raspail.jpg/800px-Paris_-_Immeuble_bld_Raspail.jpg"
     else: return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
@@ -75,14 +77,11 @@ def get_facade_image(adresse, style_backup, heading=0, pitch=10):
 def proposition_ia_avancee(adresse):
     ads = adresse.lower()
     
-    # CAS SPÉCIFIQUE (159 FBG ST ANTOINE)
     if "159" in ads and "antoine" in ads:
         return {
             "style": "Faubourien (Grand Gabarit)", "annee": "1860", "profil": "PLATRE_ANCIEN", 
             "porte": "PORTE_COCHERE", "etages": 6, "largeur": 16, "toiture": True
         }
-    
-    # LOGIQUE GÉNÉRALE
     elif "sebastien" in ads:
         return {"style": "Faubourien (Classique)", "annee": "1850", "profil": "PLATRE_ANCIEN", "porte": "PORTE_COCHERE", "etages": 4, "largeur": 14, "toiture": False}
     elif "pascal" in ads:
@@ -98,8 +97,8 @@ def proposition_ia_avancee(adresse):
 with st.sidebar:
     st.header("🔧 Calibrage Expert")
     st.subheader("📷 Caméra Street View")
-    cam_heading = st.slider("Orientation (Rotation)", 0, 360, 0, 10, help="Tournez pour voir la façade de face.")
-    cam_pitch = st.slider("Inclinaison (Haut/Bas)", -10, 45, 10, help="Montez pour voir le toit.")
+    cam_heading = st.slider("Orientation (Rotation)", 0, 360, 0, 10)
+    cam_pitch = st.slider("Inclinaison (Haut/Bas)", -10, 45, 10)
     st.divider()
     st.subheader("📏 Dimensions")
     container_params = st.container()
@@ -147,7 +146,6 @@ if st.session_state.data_ia:
     c1, c2 = st.columns([1.2, 2])
     
     with c1:
-        # C'est ici que l'erreur se produisait, maintenant corrigé :
         img = get_facade_image(st.session_state.adresse_input, d['style'], heading=cam_heading, pitch=cam_pitch)
         st.image(img, caption="Vue Street View (Ajustable via menu gauche)", use_column_width=True)
         
@@ -169,9 +167,12 @@ if st.session_state.data_ia:
     total = 0
     
     def add_line(icon, key, cat, qty, u=None):
+        # Sécurité anti-crash
         if key not in DB_PRIX[cat]: return 0
+        
         item = DB_PRIX[cat][key]
-        unit = u if u else item['unit']
+        # Sécurité unité manquante : par défaut m² si non trouvé
+        unit = u if u else item.get('unit', 'm²')
         price = qty * item['pu']
         
         with st.container():
