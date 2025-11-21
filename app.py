@@ -3,27 +3,27 @@ import time
 import requests
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V28 (Intégrale)", layout="wide", page_icon="🏢")
+st.set_page_config(page_title="Estimateur Libert V29 (Cadrage)", layout="wide", page_icon="🎯")
 
 # ==============================================================================
-# 🔑 API GOOGLE (GARDER VOTRE CLÉ)
+# 🔑 API GOOGLE (VOTRE CLÉ)
 # ==============================================================================
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except:
-    GOOGLE_API_KEY = "" 
+    GOOGLE_API_KEY = ""
 
 # ==============================================================================
-# 1. BASE DE PRIX COMPLÈTE (Celle qui ne doit rien oublier)
+# 1. BASE DE PRIX (INCHANGÉE)
 # ==============================================================================
 DB_PRIX = {
     "LOGISTIQUE": {
-        "BASE_VIE": {"titre": "Installation de Chantier & Base Vie", "pourquoi": "Roulotte, WC, Cantonnement, Barrières.", "pu": 4500.00, "unit": "Forfait"},
-        "AUTORISATION": {"titre": "Taxes de Voirie (ODP)", "pourquoi": "Redevance municipale occupation trottoir.", "pu": 605.00, "unit": "Forfait"},
-        "ECHAFAUDAGE": {"titre": "Échafaudage Tubulaire Classe 4", "pourquoi": "Structure lourde pour IGH/Immeuble.", "pu": 39.90, "unit": "m²"},
-        "ECHAFAUDAGE_PAV": {"titre": "Échafaudage Léger / Roulant", "pourquoi": "Structure adaptée maison individuelle.", "pu": 28.00, "unit": "m²"},
-        "TUNNEL": {"titre": "Tunnel de Protection Public", "pourquoi": "Obligatoire au-dessus des vitrines/commerces.", "pu": 65.00, "unit": "ml"},
-        "ALARME": {"titre": "Alarme Anti-Intrusion", "pourquoi": "Sécurisation des échafaudages (Zone dense).", "pu": 2070.00, "unit": "Forfait"}
+        "BASE_VIE": {"titre": "Installation & Base Vie", "pourquoi": "Roulotte, WC, Cantonnement.", "pu": 4500.00, "unit": "Forfait"},
+        "AUTORISATION": {"titre": "Taxes Voirie", "pourquoi": "Redevance municipale.", "pu": 605.00, "unit": "Forfait"},
+        "ECHAFAUDAGE": {"titre": "Échafaudage Tubulaire", "pourquoi": "Classe 4 + filets.", "pu": 39.90, "unit": "m²"},
+        "ECHAFAUDAGE_PAV": {"titre": "Échafaudage Léger", "pourquoi": "Structure adaptée pavillon.", "pu": 28.00, "unit": "m²"},
+        "TUNNEL": {"titre": "Tunnel Public", "pourquoi": "Sécurité piétons (Commerce).", "pu": 60.00, "unit": "ml"},
+        "MAJORATION_HAUTEUR": {"titre": "Majoration Grande Hauteur", "pourquoi": "Manutention > R+5.", "pu": 15.00, "unit": "m²"}
     },
     "FACADES": { 
         "PLATRE_ANCIEN": {"titre": "Restauration Plâtre (Lourd)", "nettoyage": 16.50, "piochage": 150.00, "finition": 95.00, "ratio_degats": 0.50, "desc": "Décapage + Purge maçonnerie + Micro-mortier"},
@@ -33,16 +33,16 @@ DB_PRIX = {
         "PAVILLON_ENDUIT": {"titre": "Ravalement Maison I3", "nettoyage": 18.00, "piochage": 45.00, "finition": 42.00, "ratio_degats": 0.10, "desc": "Lavage + Reprise fissures + RPE Souple"}
     },
     "BOISERIE": {
-        "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "pourquoi": "Décapage thermique, greffes, lasure.", "pu": 3200.00, "unit": "U"},
-        "PORTE_ENTREE": {"titre": "Peinture Porte Hall", "pourquoi": "Égrenage et peinture laque.", "pu": 850.00, "unit": "U"},
-        "DEBORD_TOIT": {"titre": "Lasure Débords de Toit", "pourquoi": "Protection des planches de rive (Pavillon).", "pu": 45.00, "unit": "ml"}
+        "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "pourquoi": "Décapage, greffes, lasure.", "pu": 3200.00, "unit": "U"},
+        "PORTE_ENTREE": {"titre": "Peinture Porte Hall", "pourquoi": "Égrenage et laque.", "pu": 850.00, "unit": "U"},
+        "DEBORD_TOIT": {"titre": "Lasure Débords de Toit", "pourquoi": "Protection planches de rive.", "pu": 45.00, "unit": "ml"}
     },
     "ZINGUERIE": {
-        "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve avec larmier.", "pu": 215.00, "unit": "U"},
-        "DESCENTE": {"titre": "Descentes EP (Zinc/Fonte)", "pourquoi": "Remplacement complet.", "pu": 165.00, "unit": "ml"},
-        "GARDE_CORPS": {"titre": "Peinture Garde-corps", "pourquoi": "Traitement antirouille ferronnerie.", "pu": 160.00, "unit": "U"},
-        "BANDEAU": {"titre": "Couvre-Murette (Zinc)", "pourquoi": "Protection des bandeaux saillants.", "pu": 178.00, "unit": "ml"},
-        "CHIEN_ASSIS": {"titre": "Habillage Chien-Assis", "pourquoi": "Rénovation zinc et jouées lucarne.", "pu": 950.00, "unit": "U"}
+        "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve.", "pu": 215.00, "unit": "U"},
+        "DESCENTE": {"titre": "Descentes EP", "pourquoi": "Remplacement Zinc/Fonte.", "pu": 165.00, "unit": "ml"},
+        "GARDE_CORPS": {"titre": "Peinture Garde-corps", "pourquoi": "Traitement antirouille.", "pu": 160.00, "unit": "U"},
+        "BANDEAU": {"titre": "Couvre-Murette (Zinc)", "pourquoi": "Protection bandeaux.", "pu": 178.00, "unit": "ml"},
+        "CHIEN_ASSIS": {"titre": "Habillage Chien-Assis", "pourquoi": "Rénovation zinc lucarne.", "pu": 950.00, "unit": "U"}
     }
 }
 
@@ -58,51 +58,60 @@ def get_adresses_api(query):
 
 def get_street_view(adresse, heading, pitch):
     if GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 10:
-        return f"https://maps.googleapis.com/maps/api/streetview?size=640x480&location={adresse}&fov=110&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
+        # fov=100 pour voir large, pitch=10 pour voir un peu en hauteur
+        return f"https://maps.googleapis.com/maps/api/streetview?size=640x480&location={adresse}&fov=100&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
     return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
 def pre_analyse_ia(adresse):
-    """Détection initiale pour pré-remplir les champs"""
     ads = adresse.lower()
-    
-    # TYPE DE BIEN
     if "allee" in ads or "chemin" in ads or "impasse" in ads:
-        type_bien = "PAVILLON"
-        profil = "PAVILLON_ENDUIT"
-        etages = 2
-        largeur = 10
+        return {"type": "PAVILLON", "profil": "PAVILLON_ENDUIT", "etages": 2, "largeur": 10, "annee": "Inconnue"}
     else:
         type_bien = "IMMEUBLE"
         etages = 5
         largeur = 15
-        # Profil Immeuble
         if "sebastien" in ads or "faubourg" in ads: profil = "PLATRE_ANCIEN"
         elif "pascal" in ads: profil = "BRIQUE"
         elif "general" in ads: profil = "BETON"
         else: profil = "PIERRE_TAILLE"
-
-    return {"type": type_bien, "profil": profil, "etages": etages, "largeur": largeur, "annee": "Inconnue"}
+        return {"type": type_bien, "profil": profil, "etages": etages, "largeur": largeur, "annee": "Inconnue"}
 
 # ==============================================================================
 # 3. INTERFACE UTILISATEUR
 # ==============================================================================
 
-# --- SIDEBAR : CENTRE DE CONTRÔLE TOTAL ---
+# GESTION DE L'ÉTAT DE LA CAMÉRA (Pour les boutons)
+if 'cam_heading' not in st.session_state: st.session_state.cam_heading = 0
+if 'cam_pitch' not in st.session_state: st.session_state.cam_pitch = 10
+
+# Fonctions de rotation
+def rotate_cam(angle):
+    st.session_state.cam_heading = (st.session_state.cam_heading + angle) % 360
+
+# --- SIDEBAR : CENTRE DE CONTRÔLE ---
 with st.sidebar:
-    st.header("🎛️ Paramètres Expert")
+    st.header("🎯 Cadrage Façade")
+    st.info("Si l'image ne montre pas le bon bâtiment, utilisez ces boutons pour tourner la caméra.")
     
-    # 1. IMAGE
-    st.subheader("📷 Vue Façade")
-    cam_h = st.slider("Rotation", 0, 360, 0, label_visibility="collapsed")
-    cam_p = st.slider("Inclinaison", -10, 45, 10, label_visibility="collapsed")
+    # BOUTONS DE ROTATION RAPIDE
+    col_r1, col_r2, col_r3 = st.columns(3)
+    with col_r1: 
+        st.button("⬅️", on_click=rotate_cam, args=(-45,), help="Pivoter Gauche 45°")
+    with col_r2: 
+        st.button("🔄", on_click=rotate_cam, args=(180,), help="Demi-tour (Trottoir d'en face)")
+    with col_r3: 
+        st.button("➡️", on_click=rotate_cam, args=(45,), help="Pivoter Droite 45°")
+
+    # SLIDERS DE PRÉCISION
+    st.session_state.cam_heading = st.slider("Rotation Fine (360°)", 0, 360, st.session_state.cam_heading)
+    st.session_state.cam_pitch = st.slider("Inclinaison (Voir Toit)", -10, 45, st.session_state.cam_pitch)
     
     st.divider()
-    
-    # 2. CONFIGURATION BÂTIMENT (Le Container sera rempli après l'adresse)
+    st.header("🎛️ Paramètres Expert")
     container_config = st.container()
 
 # --- PAGE PRINCIPALE ---
-st.title("🏢 Estimateur Libert V28 (Intégrale)")
+st.title("🏢 Estimateur Libert V29 (Précision)")
 
 # Gestion état
 if 'addr' not in st.session_state: st.session_state.addr = ""
@@ -123,14 +132,15 @@ with c2:
         if final_addr:
             st.session_state.ia_data = pre_analyse_ia(final_addr)
             st.session_state.addr = final_addr
+            # Reset caméra par défaut au chargement
+            st.session_state.cam_heading = 0 
 
 # --- MOTEUR DE CALCUL ---
 if st.session_state.ia_data:
     d = st.session_state.ia_data
     
-    # --- REMPLISSAGE SIDEBAR (CONTROLES MANUELS) ---
+    # --- REMPLISSAGE SIDEBAR ---
     with container_config:
-        # A. TYPE & DIMENSIONS
         st.subheader("1. Structure")
         v_type = st.radio("Type de Bien", ["IMMEUBLE", "PAVILLON"], index=0 if d['type']=="IMMEUBLE" else 1, horizontal=True)
         
@@ -138,49 +148,40 @@ if st.session_state.ia_data:
         with c_etg: v_etages = st.number_input("Niveaux (R+)", value=d['etages'], min_value=1)
         with c_larg: v_largeur = st.number_input("Largeur (m)", value=d['largeur'], min_value=5)
         
-        # B. MATÉRIAU
-        st.subheader("2. Matériau Façade")
+        st.subheader("2. Matériau")
         opts_mat = list(DB_PRIX["FACADES"].keys())
         idx_mat = opts_mat.index(d['profil']) if d['profil'] in opts_mat else 0
         v_profil = st.selectbox("Support dominant", opts_mat, index=idx_mat)
         
-        # C. DÉTAILS & OPTIONS (C'est là qu'on remet tout ce qui manquait !)
         st.subheader("3. Points Singuliers")
-        
-        # Options Immeuble
         if v_type == "IMMEUBLE":
-            v_com = st.checkbox("Commerces au RDC (Tunnel)", value=False)
-            v_alarme = st.checkbox("Zone sensible (Alarme)", value=True)
-            v_porte_type = st.selectbox("Menuiserie Entrée", ["PORTE_COCHERE", "PORTE_ENTREE", "AUCUNE"])
-            v_chiens = st.number_input("Chiens-Assis (Toit)", value=0, min_value=0)
+            v_com = st.checkbox("Commerces RDC", value=False)
+            v_alarme = st.checkbox("Alarme", value=True)
+            v_porte_type = st.selectbox("Porte Entrée", ["PORTE_COCHERE", "PORTE_ENTREE", "AUCUNE"])
+            v_chiens = st.number_input("Chiens-Assis", value=0, min_value=0)
         else:
-            v_com = False
-            v_alarme = False
-            v_porte_type = "AUCUNE" # Souvent inclus dans lot menuiserie pavillon
+            v_com = False; v_alarme = False
+            v_porte_type = "AUCUNE"
             v_chiens = st.number_input("Lucarnes", value=0)
             
-        # Quantités ajustables
-        st.caption("Quantités estimées (Ajustables)")
-        
-        # Calculs auto pour pré-remplir
+        st.caption("--- Ajustement Quantités ---")
         calc_h = v_etages * 3.0
         if v_type == "PAVILLON":
-            calc_s = (v_largeur * 4) * calc_h # Périmètre x Hauteur (Approx 4 faces)
+            calc_s = (v_largeur * 4) * calc_h
         else:
             calc_s = v_largeur * calc_h
             
-        calc_fen = int(calc_s / 12)
-        
-        v_fenetres = st.number_input("Nb Fenêtres", value=calc_fen)
+        v_fenetres = st.number_input("Nb Fenêtres", value=int(calc_s / 12))
         v_garde_corps = st.number_input("Nb Garde-corps", value=int(v_fenetres*0.6))
         
-    # --- AFFICHAGE CENTRAL ---
+    # --- VISUEL ---
     st.divider()
-    
-    # 1. VISUEL
     ci, ct = st.columns([1.5, 2])
     with ci:
-        st.image(get_street_view(st.session_state.addr, cam_h, cam_p), caption="Street View Live", use_column_width=True)
+        # Image utilisant le HEADING du session_state
+        st.image(get_street_view(st.session_state.addr, st.session_state.cam_heading, st.session_state.cam_pitch), caption=f"Orientation Caméra : {st.session_state.cam_heading}°", use_column_width=True)
+        st.caption("Utilisez les boutons ⬅️ 🔄 ➡️ dans le menu de gauche si la façade n'est pas visible.")
+        
     with ct:
         st.subheader("Synthèse Projet")
         st.success(f"**{v_type}** | Support : **{DB_PRIX['FACADES'][v_profil]['titre']}**")
@@ -190,16 +191,14 @@ if st.session_state.ia_data:
         m2.metric("Surface Traitée", f"{calc_s} m²")
         m3.metric("Points Singuliers", f"{v_fenetres + v_chiens} U")
         
-        # Tags actifs
         tags = []
-        if v_com: tags.append("🏪 Commerce (Tunnel)")
+        if v_com: tags.append("🏪 Commerce")
         if v_chiens > 0: tags.append(f"🏠 {v_chiens} Chiens-assis")
-        if v_porte_type != "AUCUNE": tags.append("🚪 Porte incluse")
-        st.write(" ".join([f"`{t}`" for t in tags]))
+        if v_porte_type != "AUCUNE": tags.append("🚪 Porte")
+        st.markdown(" ".join([f"`{t}`" for t in tags]))
 
-    # 2. DEVIS (LE COEUR DU SYSTÈME)
+    # --- DEVIS ---
     st.markdown("### 📑 Devis Détaillé")
-    
     total = 0
     prof_data = DB_PRIX["FACADES"][v_profil]
     
@@ -213,23 +212,15 @@ if st.session_state.ia_data:
             st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
         return p
 
-    # --- SECTION A : LOGISTIQUE ---
     st.markdown("##### 1. Logistique & Accès")
-    # Base vie
-    total += add_row("🚧", DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["titre"], DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["pourquoi"], 1, DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["pu"], "Forfait")
-    
-    # Echafaudage (Différent si Pavillon)
     if v_type == "PAVILLON":
         echaf = DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE_PAV"]
+        total += add_row("🛡️", echaf["titre"], echaf["pourquoi"], calc_s, echaf["pu"], "m²")
     else:
-        echaf = DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE"]
-        # Taxe voirie (rarement sur pavillon)
-        taxe = DB_PRIX["LOGISTIQUE"]["AUTORISATION"]
-        total += add_row("📜", taxe["titre"], taxe["pourquoi"], 1, taxe["pu"], "Forfait")
-        
-    total += add_row("🛡️", echaf["titre"], echaf["pourquoi"], calc_s, echaf["pu"], "m²")
+        total += add_row("🚧", DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["titre"], DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["pourquoi"], 1, DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["pu"], "Forfait")
+        total += add_row("🛡️", DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE"]["titre"], DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE"]["pourquoi"], calc_s, DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE"]["pu"], "m²")
+        total += add_row("📜", DB_PRIX["LOGISTIQUE"]["AUTORISATION"]["titre"], DB_PRIX["LOGISTIQUE"]["AUTORISATION"]["pourquoi"], 1, DB_PRIX["LOGISTIQUE"]["AUTORISATION"]["pu"], "Forfait")
     
-    # Options Immeuble
     if v_com:
         tun = DB_PRIX["LOGISTIQUE"]["TUNNEL"]
         total += add_row("🚇", tun["titre"], tun["pourquoi"], v_largeur, tun["pu"], "ml")
@@ -237,35 +228,24 @@ if st.session_state.ia_data:
         ala = DB_PRIX["LOGISTIQUE"]["ALARME"]
         total += add_row("🚨", ala["titre"], ala["pourquoi"], 1, ala["pu"], "Forfait")
 
-    # --- SECTION B : FAÇADE ---
     st.markdown("##### 2. Traitement des Façades")
-    # Nettoyage
     total += add_row("💦", f"Nettoyage ({v_profil})", prof_data["desc"], calc_s, prof_data["nettoyage"], "m²")
     
-    # Piochage (Surface calculée par ratio)
     s_pioch = int(calc_s * prof_data["ratio_degats"])
-    # Si on a coché "Chiens assis", on augmente le risque piochage (toiture complexe)
     if v_chiens > 0 and v_profil == "PLATRE_ANCIEN": s_pioch = int(calc_s * 0.60)
-        
     total += add_row("🧱", "Piochage & Maçonnerie", "Purge et reconstitution des fonds.", s_pioch, prof_data["piochage"], "m²")
-    
-    # Finition
     total += add_row("🎨", "Finition Système", prof_data["desc"], calc_s, prof_data["finition"], "m²")
 
-    # --- SECTION C : SINGULIERS & BOISERIE ---
     st.markdown("##### 3. Finitions & Points Singuliers")
-    
-    # Boiseries
     if v_porte_type != "AUCUNE":
         item_porte = DB_PRIX["BOISERIE"][v_porte_type]
         total += add_row("🚪", item_porte["titre"], item_porte["pourquoi"], 1, item_porte["pu"], "U")
     
     if v_type == "PAVILLON":
         deb = DB_PRIX["BOISERIE"]["DEBORD_TOIT"]
-        perim = v_largeur * 4 # Approx
+        perim = v_largeur * 4 
         total += add_row("🏠", deb["titre"], deb["pourquoi"], perim, deb["pu"], "ml")
 
-    # Zinc
     zp = DB_PRIX["ZINGUERIE"]
     total += add_row("🌧️", zp["APPUI"]["titre"], zp["APPUI"]["pourquoi"], v_fenetres, zp["APPUI"]["pu"], "U")
     total += add_row("⬇️", zp["DESCENTE"]["titre"], zp["DESCENTE"]["pourquoi"], int(calc_h), zp["DESCENTE"]["pu"], "ml")
@@ -279,10 +259,9 @@ if st.session_state.ia_data:
     if v_chiens > 0:
         total += add_row("🏠", zp["CHIEN_ASSIS"]["titre"], zp["CHIEN_ASSIS"]["pourquoi"], v_chiens, zp["CHIEN_ASSIS"]["pu"], "U")
 
-    # TOTAL
     st.markdown("---")
-    c_tot_1, c_tot_2 = st.columns([2, 1])
-    with c_tot_2:
+    col_fin1, col_fin2 = st.columns([2, 1])
+    with col_fin2:
         st.markdown(f"""
         <div style="background:#2c3e50;color:white;padding:20px;border-radius:10px;text-align:right">
             <small>TOTAL HT ESTIMÉ</small>
@@ -291,4 +270,4 @@ if st.session_state.ia_data:
         """, unsafe_allow_html=True)
 
 elif st.session_state.addr == "":
-    st.info("👈 Entrez une adresse pour commencer.")
+    st.info("👈 Commencez par entrer une adresse.")
