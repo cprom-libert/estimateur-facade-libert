@@ -1,240 +1,242 @@
 import streamlit as st
 import time
 import datetime
-import requests # Nécessaire pour interroger l'API Adresse Gouv
+import requests
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V15", layout="wide")
+st.set_page_config(page_title="Estimateur Libert V16 (Client)", layout="wide")
 
 # ==========================================
-# 1. BASE DE PRIX "LIBERT & CIE" (BENCHMARK)
+# 1. BASE DE PRIX & PÉDAGOGIE (BENCHMARK LIBERT 2025)
 # ==========================================
+# Chaque poste contient maintenant une explication "pourquoi" pour le client
 DB_PRIX = {
-    "INSTALLATION": {
-        "BASE_VIE": 4500.00, "AUTORISATION": 605.00, 
-        "ECHAFAUDAGE": 39.90, "FILET": 13.00
+    "LOGISTIQUE": {
+        "BASE_VIE": {"titre": "Installation & Base Vie", "pourquoi": "Roulotte, WC et protections obligatoires pour la sécurité des ouvriers et des passants.", "pu": 4500.00, "unit": "Forfait"},
+        "AUTORISATION": {"titre": "Taxes de Voirie (ODP)", "pourquoi": "Redevance municipale pour l'occupation du trottoir pendant la durée du chantier.", "pu": 605.00, "unit": "Forfait"},
+        "ECHAFAUDAGE": {"titre": "Échafaudage Tubulaire", "pourquoi": "Structure sécurisée classe 4 avec filets pare-gravats pour protéger la rue.", "pu": 39.90, "unit": "m²"},
+        "FILET": {"titre": "Filets de protection", "pourquoi": "Obligatoire pour empêcher toute chute de gravats.", "pu": 13.00, "unit": "m²"}
     },
-    "PLATRE_ANCIEN": { # Faubourg
-        "NETTOYAGE": 16.50, "PIOCHAGE": 150.00, "FINITION": 90.00, "RATIO_DEGATS": 0.50
+    "PLATRE_ANCIEN": { 
+        "NETTOYAGE": {"titre": "Décapage Chimique", "pourquoi": "Retire les anciennes peintures sans abîmer le plâtre fragile.", "pu": 16.50},
+        "PIOCHAGE": {"titre": "Soin des Maçonneries (Purge)", "pourquoi": "Étape critique : on retire les parties mortes (qui sonnent creux) pour reconstruire une base saine.", "pu": 150.00},
+        "FINITION": {"titre": "Finition Micro-Mortier", "pourquoi": "Revêtement respirant qui laisse sortir l'humidité du mur (vital pour le plâtre).", "pu": 90.00},
+        "RATIO_DEGATS": 0.50
     },
-    "PIERRE_BRIQUE": { # Années 30
-        "NETTOYAGE": 25.00, "PIOCHAGE": 37.50, "FINITION": 48.00, "RATIO_DEGATS": 0.10
+    "PIERRE_BRIQUE": { 
+        "NETTOYAGE": {"titre": "Hydrogommage Doux", "pourquoi": "Gommage à basse pression pour nettoyer la pierre sans creuser le grain.", "pu": 25.00},
+        "PIOCHAGE": {"titre": "Ragréage Pierre", "pourquoi": "Reconstitution des pierres abîmées avec un mortier spécial pierre.", "pu": 37.50},
+        "FINITION": {"titre": "Minéralisation", "pourquoi": "Protection invisible qui durcit la pierre et la protège de la pollution.", "pu": 48.00},
+        "RATIO_DEGATS": 0.10
     },
-    "MODERNE_BETON": { # Années 70
-        "NETTOYAGE": 12.00, "PIOCHAGE": 37.50, "FINITION": 55.00, "RATIO_DEGATS": 0.05
+    "MODERNE_BETON": { 
+        "NETTOYAGE": {"titre": "Lavage Haute Pression", "pourquoi": "Nettoyage en profondeur pour décrasser le béton.", "pu": 12.00},
+        "PIOCHAGE": {"titre": "Traitement des fers", "pourquoi": "Passivation des fers à béton rouillés pour stopper l'éclatement du béton.", "pu": 37.50},
+        "FINITION": {"titre": "Revêtement D3 Armé", "pourquoi": "Peinture épaisse et souple qui ponte les fissures et imperméabilise.", "pu": 55.00},
+        "RATIO_DEGATS": 0.05
+    },
+    "BOISERIE": { # NOUVELLE SECTION
+        "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "pourquoi": "Décapage complet, greffes de bois sur parties pourries, lasure ou peinture.", "pu": 3200.00, "unit": "Forfait"},
+        "PORTE_ENTREE": {"titre": "Peinture Porte d'Immeuble", "pourquoi": "Égrenage et peinture laque tendue haute résistance.", "pu": 850.00, "unit": "Forfait"}
     },
     "ZINGUERIE": {
-        "APPUI": 210.00, "BANDEAU": 178.00, "DESCENTE": 165.00, "GARDE_CORPS": 160.00
+        "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve pour rejeter l'eau de pluie loin de la façade.", "pu": 210.00, "unit": "U"},
+        "DESCENTE": {"titre": "Descentes EP", "pourquoi": "Remplacement des tuyaux percés ou vétustes (Zinc/Fonte).", "pu": 165.00, "unit": "ml"},
+        "GARDE_CORPS": {"titre": "Peinture Garde-corps", "pourquoi": "Traitement antirouille indispensable pour l'esthétique et la durabilité.", "pu": 160.00, "unit": "U"}
     }
 }
 
 # ==========================================
-# 2. FONCTIONS API (ADRESSE & IMAGE)
+# 2. FONCTIONS API
 # ==========================================
-
 def get_adresses_api(query):
-    """Interroge l'API du gouvernement pour l'autocomplétion"""
     if not query: return []
     url = f"https://api-adresse.data.gouv.fr/search/?q={query}&limit=5"
     try:
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
-            # On retourne une liste de (Label complet, Code Postal)
             return [feature['properties']['label'] for feature in data['features']]
-    except:
-        return []
+    except: return []
     return []
 
 def get_image_style(style_detecte):
-    """Retourne une photo d'illustration réaliste selon le style"""
-    if "Faubourien" in style_detecte:
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/14_rue_Saint-S%C3%A9bastien_Paris_11.jpg/800px-14_rue_Saint-S%C3%A9bastien_Paris_11.jpg"
-    elif "Haussmannien" in style_detecte:
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Paris_-_Immeuble_bld_Raspail.jpg/800px-Paris_-_Immeuble_bld_Raspail.jpg"
-    elif "Moderne" in style_detecte:
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Immeuble_d%27habitation_HBM.jpg/800px-Immeuble_d%27habitation_HBM.jpg"
-    else:
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
+    if "Faubourien" in style_detecte: return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/14_rue_Saint-S%C3%A9bastien_Paris_11.jpg/800px-14_rue_Saint-S%C3%A9bastien_Paris_11.jpg"
+    elif "Haussmannien" in style_detecte: return "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Paris_-_Immeuble_bld_Raspail.jpg/800px-Paris_-_Immeuble_bld_Raspail.jpg"
+    elif "Moderne" in style_detecte: return "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Immeuble_d%27habitation_HBM.jpg/800px-Immeuble_d%27habitation_HBM.jpg"
+    else: return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
 # ==========================================
-# 3. CERVEAU IA (LOGIQUE MÉTIER)
+# 3. CERVEAU IA (LOGIQUE MÉTIER + BOISERIE)
 # ==========================================
 def intelligence_artificielle(adresse_choisie):
-    # A. DÉTECTION DU STYLE (Logique simulée sur mots clés adresse)
-    
+    # A. DÉTECTION DU STYLE & BOISERIES
     if "sebastien" in adresse_choisie.lower() or "faubourg" in adresse_choisie.lower() or "orties" in adresse_choisie.lower():
         style = "Faubourien (Plâtre & Bois)"
-        annee = "Ca. 1850"
+        annee = "1850"
         profil_prix = "PLATRE_ANCIEN"
-        diag = "Pathologie : Fissures structurelles, enduits soufflés, risque plomb."
+        # Les immeubles faubouriens ont souvent une grande porte cochère en bois
+        type_porte = "PORTE_COCHERE" 
         largeur = 14
         etages = 4
     elif "pascal" in adresse_choisie.lower() or "thibaud" in adresse_choisie.lower():
         style = "Années 30 (Brique/Pierre)"
-        annee = "Ca. 1930"
+        annee = "1930"
         profil_prix = "PIERRE_BRIQUE"
-        diag = "Pathologie : Encrassement atmosphérique, joints dégradés."
+        type_porte = "PORTE_ENTREE" # Porte standard vitrée/ferronnerie
         largeur = 18
         etages = 6
     elif "general" in adresse_choisie.lower() or "leclerc" in adresse_choisie.lower():
         style = "Moderne (Béton Armé)"
-        annee = "Ca. 1970"
+        annee = "1970"
         profil_prix = "MODERNE_BETON"
-        diag = "Pathologie : Carbonatation, éclats de béton, isolation faible."
+        type_porte = "PORTE_ENTREE" # Souvent porte alu/verre, mais on chiffre une peinture cadre
         largeur = 22
         etages = 7
     else:
-        # Par défaut : Haussmannien standard
         style = "Haussmannien (Pierre de Taille)"
-        annee = "Ca. 1890"
+        annee = "1890"
         profil_prix = "PIERRE_BRIQUE"
-        diag = "Pathologie : Noircissement, Zingueries vétustes."
+        type_porte = "PORTE_COCHERE" # Le classique Haussmannien
         largeur = 16
         etages = 6
 
-    # B. CALCULS GÉOMÉTRIQUES
+    # B. CALCULS
     hauteur = etages * 3.0
     surface_totale = int(hauteur * largeur)
-    
-    # C. POINTS SINGULIERS
     nb_fenetres = int(surface_totale / 12)
-    ml_bandeaux = int(largeur * 2.5)
-    nb_garde_corps = int(nb_fenetres * 0.8)
     ml_ep = int(hauteur)
+    nb_garde_corps = int(nb_fenetres * 0.8)
 
-    # Image
     img_url = get_image_style(style)
 
     return {
         "adresse": adresse_choisie,
-        "info": {"annee": annee, "style": style, "diag": diag, "img": img_url},
-        "geo": {"surface": surface_totale, "etages": etages},
-        "tech": {"profil": profil_prix},
-        "qty": {"fenetres": nb_fenetres, "bandeaux": ml_bandeaux, "garde_corps": nb_garde_corps, "ep": ml_ep}
+        "info": {"annee": annee, "style": style, "img": img_url},
+        "geo": {"surface": surface_totale, "etages": etages, "largeur": largeur},
+        "tech": {"profil": profil_prix, "porte": type_porte},
+        "qty": {"fenetres": nb_fenetres, "garde_corps": nb_garde_corps, "ep": ml_ep}
     }
 
 # ==========================================
 # 4. INTERFACE UTILISATEUR
 # ==========================================
-
-# Sidebar pour le logo ou info entreprise
 with st.sidebar:
     st.header("Libert & Cie")
-    st.info("Estimateur V15.1\nConnecté API Gouv.")
-    st.markdown("---")
-    st.caption("Cet outil utilise l'IA pour estimer la surface et les pathologies à partir de l'adresse.")
+    st.markdown("**Outil d'Estimation Façade**")
+    st.caption("Version Client V16")
 
-st.title("📍 Estimateur de Façade Intelligent")
-st.markdown("#### Entrez l'adresse pour générer le rapport technique")
+st.title("🏡 Votre Estimation de Ravalement")
+st.markdown("### Renseignez l'adresse de votre copropriété")
 
-# --- ZONE DE RECHERCHE ADRESSE (AUTOCOMPLÉTION) ---
+if 'adresse_input' not in st.session_state: st.session_state.adresse_input = ""
 col_search, col_btn = st.columns([3, 1])
 
 with col_search:
-    # On utilise session_state pour garder l'adresse en mémoire
-    if 'adresse_input' not in st.session_state: st.session_state.adresse_input = ""
-    
-    search_query = st.text_input("Rechercher une adresse (France)", placeholder="Ex: 14 rue Saint Sébastien...", value=st.session_state.adresse_input)
-    
-    # Menu déroulant dynamique
+    search_query = st.text_input("Adresse exacte :", placeholder="Ex: 14 rue Saint Sébastien...", value=st.session_state.adresse_input, label_visibility="collapsed")
     if search_query and len(search_query) > 3:
         options = get_adresses_api(search_query)
-        if options:
-            selected_address = st.selectbox("📍 Sélectionnez l'adresse exacte :", options)
-        else:
-            selected_address = search_query # Fallback
+        selected_address = st.selectbox("📍 Confirmez l'adresse :", options) if options else search_query
     else:
         selected_address = None
 
 with col_btn:
-    st.write("") # Spacer
-    st.write("") 
-    launch = st.button("LANCER L'ANALYSE", type="primary", use_container_width=True)
+    launch = st.button("VOIR MON RAPPORT", type="primary", use_container_width=True)
 
-# --- GÉNÉRATION DU RAPPORT ---
 if launch and selected_address:
-    with st.spinner("📡 Connexion Cadastre & Analyse Visuelle..."):
-        time.sleep(1.5) # Simulation temps de calcul
+    with st.spinner("Analyse du bâtiment en cours..."):
+        time.sleep(1.2)
         data = intelligence_artificielle(selected_address)
         
-        # --- AFFICHAGE DU RAPPORT ---
+        # --- EN-TÊTE VISUEL ---
         st.divider()
-        st.subheader(f"Rapport Technique : {selected_address}")
-        
-        # 1. VISUEL & DIAGNOSTIC (AVEC PHOTO)
-        col_img, col_diag = st.columns([1, 1.5])
+        col_img, col_infos = st.columns([1, 2])
         
         with col_img:
-            st.image(data['info']['img'], caption=f"Typologie détectée : {data['info']['style']}", use_column_width=True)
+            st.image(data['info']['img'], use_column_width=True, caption="Typologie architecturale identifiée")
             
-        with col_diag:
-            st.success(f"**Année construction :** {data['info']['annee']}")
-            st.info(f"**Surface Façade (IA) :** {data['geo']['surface']} m²")
+        with col_infos:
+            st.subheader(f"📍 {data['adresse']}")
             
-            st.markdown(f"""
-            <div style="background-color:#f9f9f9; padding:15px; border-radius:10px; border-left:5px solid #e67e22;">
-                <b>🔍 Diagnostic Pathologique :</b><br>
-                {data['info']['diag']}
-            </div>
-            """, unsafe_allow_html=True)
+            # Indicateurs Clés (GRANDS pour être lus facilement)
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Année Construction", data['info']['annee'])
+            k2.metric("Hauteur", f"R+{data['geo']['etages']-1} ({data['geo']['etages']} niveaux)")
+            k3.metric("Surface Façade", f"{data['geo']['surface']} m²")
             
-            # Jauge de dégradation (visuel)
-            degat_pct = DB_PRIX[data['tech']['profil']]['RATIO_DEGATS'] * 100
-            st.write(f"**État estimé des maçonneries :**")
-            st.progress(int(degat_pct), text=f"Dégradation estimée à {int(degat_pct)}% (Impacte le piochage)")
+            st.info(f"**Style détecté : {data['info']['style']}**. L'estimation ci-dessous prend en compte les spécificités techniques de ce type de bâtiment (matériaux, décorations, menuiseries).")
 
-        # 2. DEVIS DÉTAILLÉ
-        st.markdown("### 📋 Détail Quantitatif Estimatif (DQE)")
+        # --- LE DEVIS EXPLIQUÉ (DESIGN PÉDAGOGIQUE) ---
+        st.markdown("### 📑 Détail de votre investissement")
         
-        # Calculs
-        p_profil = DB_PRIX[data['tech']['profil']]
+        profil = DB_PRIX[data['tech']['profil']]
+        porte_type = data['tech']['porte']
         qty = data['qty']
         surf = data['geo']['surface']
-        
-        lignes = []
         total_ht = 0
-        
-        def add_row(poste, detail, qte, pu, unit):
-            t = qte * pu
-            # Conversion propre en string pour l'affichage
-            pu_str = f"{pu:.2f} €"
-            tot_str = f"{t:,.2f} €"
-            lignes.append({"Poste": poste, "Détail Technique & Norme": detail, "Qté": f"{qte} {unit}", "P.U. HT": pu_str, "Total HT": tot_str})
-            return t
 
-        # Installation
-        total_ht += add_row("Installation de Chantier", "Base vie, Roulotte, WC, Taxes Voirie", 1, DB_PRIX["INSTALLATION"]["BASE_VIE"] + DB_PRIX["INSTALLATION"]["AUTORISATION"], "Forfait")
-        total_ht += add_row("Échafaudage & Filets", "Tubulaire Classe 4 + Pare-gravats (NF HD 1000)", surf, DB_PRIX["INSTALLATION"]["ECHAFAUDAGE"] + DB_PRIX["INSTALLATION"]["FILET"], "m²")
+        def afficher_ligne(icon, item_key, db_cat, qte, unit_override=None):
+            # Récupération des datas
+            item = DB_PRIX[db_cat][item_key]
+            pu = item['pu']
+            unit = unit_override if unit_override else item.get('unit', 'm²')
+            
+            # Calcul total ligne
+            total_ligne = qte * pu
+            
+            # Affichage "Carte"
+            with st.container():
+                c1, c2, c3 = st.columns([3, 1, 1])
+                with c1:
+                    st.markdown(f"**{icon} {item['titre']}**")
+                    st.caption(f"💡 *{item['pourquoi']}*")
+                with c2:
+                    st.markdown(f"<div style='text-align:center; padding-top:5px;'>{qte} {unit}</div>", unsafe_allow_html=True)
+                with c3:
+                    st.markdown(f"<div style='text-align:right; font-weight:bold; color:#2c3e50; padding-top:5px;'>{total_ligne:,.2f} €</div>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:5px 0; opacity:0.3;'>", unsafe_allow_html=True)
+            
+            return total_ligne
 
-        # Façade
-        total_ht += add_row("Nettoyage des Fonds", "Décapage ou Hydrogommage (DTU 59.1)", surf, p_profil["NETTOYAGE"], "m²")
-        
-        # Piochage dynamique
-        surf_pioch = int(surf * p_profil["RATIO_DEGATS"])
-        desc_pioch = f"⚠️ Piochage Lourd ({int(p_profil['RATIO_DEGATS']*100)}% de la surface)" if data['tech']['profil'] == "PLATRE_ANCIEN" else "Sondage & Ragréage ponctuel"
-        total_ht += add_row("Maçonnerie (Purge)", f"{desc_pioch} (DTU 26.1)", surf_pioch, p_profil["PIOCHAGE"], "m²")
-        
-        total_ht += add_row("Finition Système", "Application revêtement complet", surf, p_profil["FINITION"], "m²")
+        # 1. INSTALLATION
+        st.markdown("#### 1️⃣ Installation & Sécurité")
+        total_ht += afficher_ligne("🚧", "BASE_VIE", "LOGISTIQUE", 1, "Forfait")
+        total_ht += afficher_ligne("🛡️", "ECHAFAUDAGE", "LOGISTIQUE", surf)
+        total_ht += afficher_ligne("📜", "AUTORISATION", "LOGISTIQUE", 1, "Forfait")
 
-        # Singuliers
-        total_ht += add_row("Garde-corps", "Peinture antirouille", qty['garde_corps'], DB_PRIX["ZINGUERIE"]["GARDE_CORPS"], "U")
-        total_ht += add_row("Bandeaux & Corniches", "Protection Zinc / Réparation", qty['bandeaux'], DB_PRIX["ZINGUERIE"]["BANDEAU"], "ml")
-        # C'est cette ligne qui posait problème avant :
-        total_ht += add_row("Appuis de Fenêtre", "Bavette Zinc (DTU 40.5)", qty['fenetres'], DB_PRIX["ZINGUERIE"]["APPUI"], "U")
+        # 2. FAÇADE
+        st.markdown("#### 2️⃣ Traitement des Façades")
+        total_ht += afficher_ligne("💦", "NETTOYAGE", data['tech']['profil'], surf)
         
-        # Affichage Tableau
-        st.dataframe(lignes, use_container_width=True)
+        # Piochage
+        surf_pioch = int(surf * profil["RATIO_DEGATS"])
+        nom_piochage = "Soin des Maçonneries (Purge)"
+        # On personnalise le titre si c'est du lourd
+        item_pioch = DB_PRIX[data['tech']['profil']]["PIOCHAGE"]
+        if profil["RATIO_DEGATS"] >= 0.5:
+            item_pioch["titre"] = f"Réfection Lourde des Fonds ({int(profil['RATIO_DEGATS']*100)}%)"
         
-        # Total
-        st.markdown(f"""
-        <div style="background-color:#2c3e50; color:white; padding:20px; border-radius:10px; text-align:right; font-size:1.5em;">
-            <b>TOTAL ESTIMÉ HT : {total_ht:,.2f} €</b>
-        </div>
-        <div style="text-align:right; font-size:0.8em; color:gray; margin-top:5px;">
-            TVA non incluse. Devis soumis à visite technique obligatoire.
-        </div>
-        """, unsafe_allow_html=True)
+        total_ht += afficher_ligne("🧱", "PIOCHAGE", data['tech']['profil'], surf_pioch)
+        total_ht += afficher_ligne("🎨", "FINITION", data['tech']['profil'], surf)
+
+        # 3. BOISERIES & SINGULIERS
+        st.markdown("#### 3️⃣ Menuiseries & Finitions")
+        # Boiserie (Porte)
+        total_ht += afficher_ligne("🚪", porte_type, "BOISERIE", 1, "Unité")
+        
+        # Zinguerie
+        total_ht += afficher_ligne("🌧️", "APPUI", "ZINGUERIE", qty['fenetres'], "Unité")
+        total_ht += afficher_ligne("🚽", "DESCENTE", "ZINGUERIE", qty['ep'], "ml")
+        total_ht += afficher_ligne("🖌️", "GARDE_CORPS", "ZINGUERIE", qty['garde_corps'], "Unité")
+
+        # --- TOTAL ---
+        st.markdown("---")
+        col_tot_txt, col_tot_price = st.columns([3, 1])
+        with col_tot_txt:
+            st.markdown("### TOTAL ESTIMATIF HT")
+            st.caption("TVA applicable : 10% (Rénovation) ou 20% (Neuf). Devis non contractuel.")
+        with col_tot_price:
+            st.markdown(f"<h2 style='text-align:right; color:#2980b9;'>{total_ht:,.2f} €</h2>", unsafe_allow_html=True)
 
 elif launch and not selected_address:
-    st.error("Veuillez sélectionner une adresse valide dans la liste.")
+    st.error("Merci de sélectionner une adresse valide.")
