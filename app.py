@@ -62,7 +62,6 @@ def get_image_style(style_detecte):
 # ==========================================
 def intelligence_artificielle(adresse_choisie):
     # A. DÉTECTION DU STYLE (Logique simulée sur mots clés adresse)
-    # Dans une version V2, on utiliserait l'API BDNB pour avoir l'année exacte
     
     if "sebastien" in adresse_choisie.lower() or "faubourg" in adresse_choisie.lower() or "orties" in adresse_choisie.lower():
         style = "Faubourien (Plâtre & Bois)"
@@ -122,7 +121,7 @@ def intelligence_artificielle(adresse_choisie):
 # Sidebar pour le logo ou info entreprise
 with st.sidebar:
     st.header("Libert & Cie")
-    st.info("Estimateur V15\nConnecté API Gouv.")
+    st.info("Estimateur V15.1\nConnecté API Gouv.")
     st.markdown("---")
     st.caption("Cet outil utilise l'IA pour estimer la surface et les pathologies à partir de l'adresse.")
 
@@ -198,7 +197,10 @@ if launch and selected_address:
         
         def add_row(poste, detail, qte, pu, unit):
             t = qte * pu
-            lignes.append({"Poste": poste, "Détail Technique & Norme": detail, "Qté": f"{qte} {unit}", "P.U. HT": f"{pu} €", "Total HT": t})
+            # Conversion propre en string pour l'affichage
+            pu_str = f"{pu:.2f} €"
+            tot_str = f"{t:,.2f} €"
+            lignes.append({"Poste": poste, "Détail Technique & Norme": detail, "Qté": f"{qte} {unit}", "P.U. HT": pu_str, "Total HT": tot_str})
             return t
 
         # Installation
@@ -218,4 +220,21 @@ if launch and selected_address:
         # Singuliers
         total_ht += add_row("Garde-corps", "Peinture antirouille", qty['garde_corps'], DB_PRIX["ZINGUERIE"]["GARDE_CORPS"], "U")
         total_ht += add_row("Bandeaux & Corniches", "Protection Zinc / Réparation", qty['bandeaux'], DB_PRIX["ZINGUERIE"]["BANDEAU"], "ml")
-        total_ht += add_row("Appuis de Fenêtre", "Bavette Zinc (DTU 40.
+        # C'est cette ligne qui posait problème avant :
+        total_ht += add_row("Appuis de Fenêtre", "Bavette Zinc (DTU 40.5)", qty['fenetres'], DB_PRIX["ZINGUERIE"]["APPUI"], "U")
+        
+        # Affichage Tableau
+        st.dataframe(lignes, use_container_width=True)
+        
+        # Total
+        st.markdown(f"""
+        <div style="background-color:#2c3e50; color:white; padding:20px; border-radius:10px; text-align:right; font-size:1.5em;">
+            <b>TOTAL ESTIMÉ HT : {total_ht:,.2f} €</b>
+        </div>
+        <div style="text-align:right; font-size:0.8em; color:gray; margin-top:5px;">
+            TVA non incluse. Devis soumis à visite technique obligatoire.
+        </div>
+        """, unsafe_allow_html=True)
+
+elif launch and not selected_address:
+    st.error("Veuillez sélectionner une adresse valide dans la liste.")
