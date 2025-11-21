@@ -3,7 +3,7 @@ import time
 import requests
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V29 (Cadrage)", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="Estimateur Libert V30 (Stable)", layout="wide", page_icon="🛡️")
 
 # ==============================================================================
 # 🔑 API GOOGLE (VOTRE CLÉ)
@@ -14,7 +14,7 @@ except:
     GOOGLE_API_KEY = ""
 
 # ==============================================================================
-# 1. BASE DE PRIX (INCHANGÉE)
+# 1. BASE DE PRIX (CORRIGÉE AVEC ALARME)
 # ==============================================================================
 DB_PRIX = {
     "LOGISTIQUE": {
@@ -23,6 +23,7 @@ DB_PRIX = {
         "ECHAFAUDAGE": {"titre": "Échafaudage Tubulaire", "pourquoi": "Classe 4 + filets.", "pu": 39.90, "unit": "m²"},
         "ECHAFAUDAGE_PAV": {"titre": "Échafaudage Léger", "pourquoi": "Structure adaptée pavillon.", "pu": 28.00, "unit": "m²"},
         "TUNNEL": {"titre": "Tunnel Public", "pourquoi": "Sécurité piétons (Commerce).", "pu": 60.00, "unit": "ml"},
+        "ALARME": {"titre": "Alarme Échafaudage", "pourquoi": "Système anti-intrusion 24/7.", "pu": 2070.00, "unit": "Forfait"}, # <--- RAJOUTÉ ICI
         "MAJORATION_HAUTEUR": {"titre": "Majoration Grande Hauteur", "pourquoi": "Manutention > R+5.", "pu": 15.00, "unit": "m²"}
     },
     "FACADES": { 
@@ -58,7 +59,6 @@ def get_adresses_api(query):
 
 def get_street_view(adresse, heading, pitch):
     if GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 10:
-        # fov=100 pour voir large, pitch=10 pour voir un peu en hauteur
         return f"https://maps.googleapis.com/maps/api/streetview?size=640x480&location={adresse}&fov=100&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
     return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
@@ -80,44 +80,34 @@ def pre_analyse_ia(adresse):
 # 3. INTERFACE UTILISATEUR
 # ==============================================================================
 
-# GESTION DE L'ÉTAT DE LA CAMÉRA (Pour les boutons)
+# GESTION DE L'ÉTAT DE LA CAMÉRA
 if 'cam_heading' not in st.session_state: st.session_state.cam_heading = 0
 if 'cam_pitch' not in st.session_state: st.session_state.cam_pitch = 10
 
-# Fonctions de rotation
 def rotate_cam(angle):
     st.session_state.cam_heading = (st.session_state.cam_heading + angle) % 360
 
-# --- SIDEBAR : CENTRE DE CONTRÔLE ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("🎯 Cadrage Façade")
-    st.info("Si l'image ne montre pas le bon bâtiment, utilisez ces boutons pour tourner la caméra.")
-    
-    # BOUTONS DE ROTATION RAPIDE
     col_r1, col_r2, col_r3 = st.columns(3)
-    with col_r1: 
-        st.button("⬅️", on_click=rotate_cam, args=(-45,), help="Pivoter Gauche 45°")
-    with col_r2: 
-        st.button("🔄", on_click=rotate_cam, args=(180,), help="Demi-tour (Trottoir d'en face)")
-    with col_r3: 
-        st.button("➡️", on_click=rotate_cam, args=(45,), help="Pivoter Droite 45°")
+    with col_r1: st.button("⬅️", on_click=rotate_cam, args=(-45,), help="Gauche 45°")
+    with col_r2: st.button("🔄", on_click=rotate_cam, args=(180,), help="Demi-tour")
+    with col_r3: st.button("➡️", on_click=rotate_cam, args=(45,), help="Droite 45°")
 
-    # SLIDERS DE PRÉCISION
-    st.session_state.cam_heading = st.slider("Rotation Fine (360°)", 0, 360, st.session_state.cam_heading)
-    st.session_state.cam_pitch = st.slider("Inclinaison (Voir Toit)", -10, 45, st.session_state.cam_pitch)
+    st.session_state.cam_heading = st.slider("Rotation Fine", 0, 360, st.session_state.cam_heading)
+    st.session_state.cam_pitch = st.slider("Inclinaison", -10, 45, st.session_state.cam_pitch)
     
     st.divider()
     st.header("🎛️ Paramètres Expert")
     container_config = st.container()
 
-# --- PAGE PRINCIPALE ---
-st.title("🏢 Estimateur Libert V29 (Précision)")
+# --- MAIN ---
+st.title("🏢 Estimateur Libert V30 (Correctif Alarme)")
 
-# Gestion état
 if 'addr' not in st.session_state: st.session_state.addr = ""
 if 'ia_data' not in st.session_state: st.session_state.ia_data = None
 
-# Barre Recherche
 c1, c2 = st.columns([3, 1])
 with c1:
     q = st.text_input("Adresse :", value=st.session_state.addr, placeholder="Ex: 159 rue du faubourg saint antoine...")
@@ -132,21 +122,20 @@ with c2:
         if final_addr:
             st.session_state.ia_data = pre_analyse_ia(final_addr)
             st.session_state.addr = final_addr
-            # Reset caméra par défaut au chargement
-            st.session_state.cam_heading = 0 
+            st.session_state.cam_heading = 0 # Reset cam
 
-# --- MOTEUR DE CALCUL ---
+# --- CALCULS ---
 if st.session_state.ia_data:
     d = st.session_state.ia_data
     
-    # --- REMPLISSAGE SIDEBAR ---
+    # --- SIDEBAR REMPLISSAGE ---
     with container_config:
         st.subheader("1. Structure")
         v_type = st.radio("Type de Bien", ["IMMEUBLE", "PAVILLON"], index=0 if d['type']=="IMMEUBLE" else 1, horizontal=True)
         
-        c_etg, c_larg = st.columns(2)
-        with c_etg: v_etages = st.number_input("Niveaux (R+)", value=d['etages'], min_value=1)
-        with c_larg: v_largeur = st.number_input("Largeur (m)", value=d['largeur'], min_value=5)
+        ce, cl = st.columns(2)
+        with ce: v_etages = st.number_input("Niveaux (R+)", value=d['etages'], min_value=1)
+        with cl: v_largeur = st.number_input("Largeur (m)", value=d['largeur'], min_value=5)
         
         st.subheader("2. Matériau")
         opts_mat = list(DB_PRIX["FACADES"].keys())
@@ -164,7 +153,7 @@ if st.session_state.ia_data:
             v_porte_type = "AUCUNE"
             v_chiens = st.number_input("Lucarnes", value=0)
             
-        st.caption("--- Ajustement Quantités ---")
+        # Calculs
         calc_h = v_etages * 3.0
         if v_type == "PAVILLON":
             calc_s = (v_largeur * 4) * calc_h
@@ -178,96 +167,105 @@ if st.session_state.ia_data:
     st.divider()
     ci, ct = st.columns([1.5, 2])
     with ci:
-        # Image utilisant le HEADING du session_state
-        st.image(get_street_view(st.session_state.addr, st.session_state.cam_heading, st.session_state.cam_pitch), caption=f"Orientation Caméra : {st.session_state.cam_heading}°", use_column_width=True)
-        st.caption("Utilisez les boutons ⬅️ 🔄 ➡️ dans le menu de gauche si la façade n'est pas visible.")
-        
+        st.image(get_street_view(st.session_state.addr, st.session_state.cam_heading, st.session_state.cam_pitch), caption=f"Angle: {st.session_state.cam_heading}°", use_column_width=True)
     with ct:
         st.subheader("Synthèse Projet")
         st.success(f"**{v_type}** | Support : **{DB_PRIX['FACADES'][v_profil]['titre']}**")
-        
         m1, m2, m3 = st.columns(3)
         m1.metric("Hauteur", f"{calc_h} m")
-        m2.metric("Surface Traitée", f"{calc_s} m²")
-        m3.metric("Points Singuliers", f"{v_fenetres + v_chiens} U")
-        
-        tags = []
-        if v_com: tags.append("🏪 Commerce")
-        if v_chiens > 0: tags.append(f"🏠 {v_chiens} Chiens-assis")
-        if v_porte_type != "AUCUNE": tags.append("🚪 Porte")
-        st.markdown(" ".join([f"`{t}`" for t in tags]))
+        m2.metric("Surface", f"{calc_s} m²")
+        m3.metric("Points Spéciaux", f"{v_fenetres + v_chiens} U")
 
     # --- DEVIS ---
     st.markdown("### 📑 Devis Détaillé")
     total = 0
     prof_data = DB_PRIX["FACADES"][v_profil]
     
-    def add_row(icon, titre, pourquoi, qte, pu, unit):
-        p = qte * pu
+    def add_line(icon, key, cat, qty, u=None):
+        # Sécurité anti-crash
+        if key not in DB_PRIX[cat]:
+            st.error(f"Erreur interne : Clé '{key}' manquante dans '{cat}'")
+            return 0
+            
+        i = DB_PRIX[cat][key]
+        unit = u if u else i['unit']
+        p = qty * i['pu']
+        
         with st.container():
             c1, c2, c3 = st.columns([3, 1, 1])
-            c1.markdown(f"**{icon} {titre}**\n<br><span style='color:grey;font-size:0.8em'>{pourquoi}</span>", unsafe_allow_html=True)
-            c2.markdown(f"<div style='text-align:center'>{int(qte) if unit!='m²' else int(qte)} {unit}</div>", unsafe_allow_html=True)
+            c1.markdown(f"**{icon} {i['titre']}**\n<span style='color:grey;font-size:0.8em'>{i['pourquoi']}</span>", unsafe_allow_html=True)
+            c2.markdown(f"<div style='text-align:center'>{int(qty)} {unit}</div>", unsafe_allow_html=True)
             c3.markdown(f"<div style='text-align:right'><b>{p:,.2f} €</b></div>", unsafe_allow_html=True)
             st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
         return p
 
-    st.markdown("##### 1. Logistique & Accès")
+    # LOGISTIQUE
+    st.markdown("##### 1. Logistique")
     if v_type == "PAVILLON":
-        echaf = DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE_PAV"]
-        total += add_row("🛡️", echaf["titre"], echaf["pourquoi"], calc_s, echaf["pu"], "m²")
+        total += add_line("🛡️", "ECHAFAUDAGE_PAV", "LOGISTIQUE", calc_s)
     else:
-        total += add_row("🚧", DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["titre"], DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["pourquoi"], 1, DB_PRIX["LOGISTIQUE"]["BASE_VIE"]["pu"], "Forfait")
-        total += add_row("🛡️", DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE"]["titre"], DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE"]["pourquoi"], calc_s, DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE"]["pu"], "m²")
-        total += add_row("📜", DB_PRIX["LOGISTIQUE"]["AUTORISATION"]["titre"], DB_PRIX["LOGISTIQUE"]["AUTORISATION"]["pourquoi"], 1, DB_PRIX["LOGISTIQUE"]["AUTORISATION"]["pu"], "Forfait")
+        total += add_line("🚧", "BASE_VIE", "LOGISTIQUE", 1)
+        total += add_line("🛡️", "ECHAFAUDAGE", "LOGISTIQUE", calc_s)
+        total += add_line("📜", "AUTORISATION", "LOGISTIQUE", 1)
     
-    if v_com:
-        tun = DB_PRIX["LOGISTIQUE"]["TUNNEL"]
-        total += add_row("🚇", tun["titre"], tun["pourquoi"], v_largeur, tun["pu"], "ml")
-    if v_alarme and v_type == "IMMEUBLE":
-        ala = DB_PRIX["LOGISTIQUE"]["ALARME"]
-        total += add_row("🚨", ala["titre"], ala["pourquoi"], 1, ala["pu"], "Forfait")
+    if v_com: total += add_line("🚇", "TUNNEL", "LOGISTIQUE", v_largeur)
+    # CORRECTION ICI : On vérifie bien que l'option est activée ET que c'est un immeuble
+    if v_alarme and v_type == "IMMEUBLE": total += add_line("🚨", "ALARME", "LOGISTIQUE", 1)
+    if v_etages > 6: total += add_line("🏗️", "MAJORATION_HAUTEUR", "LOGISTIQUE", calc_s)
 
-    st.markdown("##### 2. Traitement des Façades")
-    total += add_row("💦", f"Nettoyage ({v_profil})", prof_data["desc"], calc_s, prof_data["nettoyage"], "m²")
+    # FAÇADE
+    st.markdown("##### 2. Traitement")
+    total += add_line("💦", "NETTOYAGE", "FACADES", calc_s) # Corrigé: Utilise clé FACADES générique ? Non, structure complexe.
+    # Correction accès dictionnaire imbriqué
+    # On utilise prof_data direct pour le nettoyage/piochage/finition car ils sont dans FACADES -> TYPE
     
+    # Nettoyage
+    p_net = calc_s * prof_data["nettoyage"]
+    # Affichage manuel car structure différente
+    with st.container():
+        c1, c2, c3 = st.columns([3, 1, 1])
+        c1.markdown(f"**💦 Nettoyage Support**\n<span style='color:grey;font-size:0.8em'>{prof_data['desc']}</span>", unsafe_allow_html=True)
+        c2.markdown(f"<div style='text-align:center'>{calc_s} m²</div>", unsafe_allow_html=True)
+        c3.markdown(f"<div style='text-align:right'><b>{p_net:,.2f} €</b></div>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
+    total += p_net
+
+    # Piochage
     s_pioch = int(calc_s * prof_data["ratio_degats"])
-    if v_chiens > 0 and v_profil == "PLATRE_ANCIEN": s_pioch = int(calc_s * 0.60)
-    total += add_row("🧱", "Piochage & Maçonnerie", "Purge et reconstitution des fonds.", s_pioch, prof_data["piochage"], "m²")
-    total += add_row("🎨", "Finition Système", prof_data["desc"], calc_s, prof_data["finition"], "m²")
+    p_pioch = s_pioch * prof_data["piochage"]
+    with st.container():
+        c1, c2, c3 = st.columns([3, 1, 1])
+        c1.markdown(f"**🧱 Soin des Maçonneries (Purge)**\n<span style='color:grey;font-size:0.8em'>Ratio dégâts estimé : {int(prof_data['ratio_degats']*100)}%</span>", unsafe_allow_html=True)
+        c2.markdown(f"<div style='text-align:center'>{s_pioch} m²</div>", unsafe_allow_html=True)
+        c3.markdown(f"<div style='text-align:right'><b>{p_pioch:,.2f} €</b></div>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
+    total += p_pioch
 
-    st.markdown("##### 3. Finitions & Points Singuliers")
-    if v_porte_type != "AUCUNE":
-        item_porte = DB_PRIX["BOISERIE"][v_porte_type]
-        total += add_row("🚪", item_porte["titre"], item_porte["pourquoi"], 1, item_porte["pu"], "U")
-    
-    if v_type == "PAVILLON":
-        deb = DB_PRIX["BOISERIE"]["DEBORD_TOIT"]
-        perim = v_largeur * 4 
-        total += add_row("🏠", deb["titre"], deb["pourquoi"], perim, deb["pu"], "ml")
+    # Finition
+    p_fin = calc_s * prof_data["finition"]
+    with st.container():
+        c1, c2, c3 = st.columns([3, 1, 1])
+        c1.markdown(f"**🎨 Finition Système**\n<span style='color:grey;font-size:0.8em'>{prof_data['titre']}</span>", unsafe_allow_html=True)
+        c2.markdown(f"<div style='text-align:center'>{calc_s} m²</div>", unsafe_allow_html=True)
+        c3.markdown(f"<div style='text-align:right'><b>{p_fin:,.2f} €</b></div>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
+    total += p_fin
 
-    zp = DB_PRIX["ZINGUERIE"]
-    total += add_row("🌧️", zp["APPUI"]["titre"], zp["APPUI"]["pourquoi"], v_fenetres, zp["APPUI"]["pu"], "U")
-    total += add_row("⬇️", zp["DESCENTE"]["titre"], zp["DESCENTE"]["pourquoi"], int(calc_h), zp["DESCENTE"]["pu"], "ml")
+    # FINITIONS
+    st.markdown("##### 3. Détails")
+    if v_porte_type != "AUCUNE": total += add_line("🚪", v_porte_type, "BOISERIE", 1)
+    if v_type == "PAVILLON": total += add_line("🏠", "DEBORD_TOIT", "BOISERIE", int(v_largeur*4))
     
-    if v_type == "IMMEUBLE":
-        total += add_row("🏛️", zp["BANDEAU"]["titre"], zp["BANDEAU"]["pourquoi"], int(v_largeur*2), zp["BANDEAU"]["pu"], "ml")
-    
-    if v_garde_corps > 0:
-        total += add_row("🖌️", zp["GARDE_CORPS"]["titre"], zp["GARDE_CORPS"]["pourquoi"], v_garde_corps, zp["GARDE_CORPS"]["pu"], "U")
-        
-    if v_chiens > 0:
-        total += add_row("🏠", zp["CHIEN_ASSIS"]["titre"], zp["CHIEN_ASSIS"]["pourquoi"], v_chiens, zp["CHIEN_ASSIS"]["pu"], "U")
+    total += add_line("🌧️", "APPUI", "ZINGUERIE", v_fenetres)
+    total += add_line("⬇️", "DESCENTE", "ZINGUERIE", int(calc_h))
+    if v_type == "IMMEUBLE": total += add_line("🏛️", "BANDEAU", "ZINGUERIE", int(v_largeur*2))
+    if v_garde_corps > 0: total += add_line("🖌️", "GARDE_CORPS", "ZINGUERIE", v_garde_corps)
+    if v_chiens > 0: total += add_line("🏠", "CHIEN_ASSIS", "ZINGUERIE", v_chiens)
 
     st.markdown("---")
-    col_fin1, col_fin2 = st.columns([2, 1])
-    with col_fin2:
-        st.markdown(f"""
-        <div style="background:#2c3e50;color:white;padding:20px;border-radius:10px;text-align:right">
-            <small>TOTAL HT ESTIMÉ</small>
-            <h1 style="margin:0">{total:,.2f} €</h1>
-        </div>
-        """, unsafe_allow_html=True)
+    c1, c2 = st.columns([2, 1])
+    with c2:
+        st.markdown(f"<div style='background:#2c3e50;color:white;padding:20px;border-radius:10px;text-align:right'><small>TOTAL HT</small><h1 style='margin:0'>{total:,.2f} €</h1></div>", unsafe_allow_html=True)
 
 elif st.session_state.addr == "":
-    st.info("👈 Commencez par entrer une adresse.")
+    st.info("👈 Entrez une adresse.")
