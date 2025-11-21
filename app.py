@@ -3,7 +3,7 @@ import time
 import requests
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V39 (Stable)", layout="wide", page_icon="🚀")
+st.set_page_config(page_title="Estimateur Libert V40 (Final)", layout="wide", page_icon="🏢")
 
 # ==============================================================================
 # 1. SÉCURITÉ & API
@@ -27,12 +27,12 @@ DB_PRIX = {
         "MAJORATION_HAUTEUR": {"titre": "Majoration Grande Hauteur", "pourquoi": "Manutention > R+5.", "pu": 15.00, "unit": "m²"}
     },
     "FACADES": { 
-        "PLATRE_ANCIEN": { 
+        "PLATRE": { 
             "titre": "Restauration Plâtre (Traditionnel)", 
-            "nettoyage": 16.50, "piochage": 150.00, "finition": 95.00, "ratio_degats": 0.50, 
+            "nettoyage": 16.50, "piochage": 160.00, "finition": 95.00, "ratio_degats": 0.50, 
             "desc": "Décapage + Purge lourde maçonneries + Micro-mortier"
         },
-        "PIERRE_TAILLE": { 
+        "PIERRE": { 
             "titre": "Ravalement Pierre de Taille", 
             "nettoyage": 28.00, "piochage": 85.00, "finition": 48.00, "ratio_degats": 0.10, 
             "desc": "Hydrogommage doux + Ragréage ponctuel + Minéralisation"
@@ -47,16 +47,11 @@ DB_PRIX = {
             "nettoyage": 12.00, "piochage": 45.00, "finition": 58.00, "ratio_degats": 0.05, 
             "desc": "Lavage HP + Passivation fers + RPE Armé"
         },
-        "PAVILLON_ENDUIT": { 
+        "PAVILLON": { 
             "titre": "Ravalement Maison I3", 
             "nettoyage": 18.00, "piochage": 45.00, "finition": 42.00, "ratio_degats": 0.10, 
             "desc": "Lavage + Reprise fissures + RPE Souple"
         }
-    },
-    "BOISERIE": {
-        "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "pourquoi": "Décapage, greffes, lasure.", "pu": 3200.00, "unit": "U"},
-        "PORTE_ENTREE": {"titre": "Peinture Porte Hall", "pourquoi": "Égrenage et laque.", "pu": 850.00, "unit": "U"},
-        "DEBORD_TOIT": {"titre": "Lasure Débords de Toit", "pourquoi": "Protection planches de rive.", "pu": 45.00, "unit": "ml"}
     },
     "ZINGUERIE": {
         "APPUI": {"titre": "Appuis de Fenêtre (Zinc)", "pourquoi": "Bavette neuve avec larmier.", "pu": 215.00, "unit": "U"},
@@ -64,6 +59,11 @@ DB_PRIX = {
         "GARDE_CORPS": {"titre": "Peinture Garde-corps", "pourquoi": "Traitement antirouille.", "pu": 160.00, "unit": "U"},
         "BANDEAU": {"titre": "Couvre-Murette (Zinc)", "pourquoi": "Protection bandeaux.", "pu": 178.00, "unit": "ml"},
         "CHIEN_ASSIS": {"titre": "Habillage Chien-Assis", "pourquoi": "Rénovation zinc lucarne.", "pu": 950.00, "unit": "U"}
+    },
+    "BOISERIE": {
+        "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "pourquoi": "Décapage, greffes, lasure.", "pu": 3200.00, "unit": "U"},
+        "PORTE_ENTREE": {"titre": "Peinture Porte Hall", "pourquoi": "Égrenage et laque.", "pu": 850.00, "unit": "U"},
+        "DEBORD_TOIT": {"titre": "Lasure Débords de Toit", "pourquoi": "Protection planches de rive.", "pu": 45.00, "unit": "ml"}
     }
 }
 
@@ -77,32 +77,36 @@ def get_adresses_api(query):
         return [f['properties']['label'] for f in r.json()['features']] if r.status_code == 200 else []
     except: return []
 
-def get_facade_image(adresse, style_backup, heading=0, pitch=20):
+def get_facade_image(adresse, heading=0, pitch=20):
+    """
+    Fonction image corrigée : Ne dépend plus d'aucune variable externe.
+    """
     if GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 10:
         base = "https://maps.googleapis.com/maps/api/streetview"
         return f"{base}?size=640x640&location={adresse}&fov=110&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
     
-    # Images de secours
-    if "Faubourien" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/14_rue_Saint-S%C3%A9bastien_Paris_11.jpg/800px-14_rue_Saint-S%C3%A9bastien_Paris_11.jpg"
-    elif "Haussmannien" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Paris_-_Immeuble_bld_Raspail.jpg/800px-Paris_-_Immeuble_bld_Raspail.jpg"
-    elif "Moderne" in style_backup: return "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Immeuble_d%27habitation_HBM.jpg/800px-Immeuble_d%27habitation_HBM.jpg"
-    else: return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
+    # Image de secours générique (si pas de clé)
+    return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
 def ia_init(adresse):
     ads = adresse.lower()
+    # 1. Type Pavillon
     if "allee" in ads or "chemin" in ads or "villa" in ads:
-        return "PAVILLON", "PAVILLON_ENDUIT", 2, 10
+        return "PAVILLON", "PAVILLON", 2, 10
     
-    if "sebastien" in ads or "faubourg" in ads: return "IMMEUBLE", "PLATRE_ANCIEN", 4, 14
+    # 2. Type Immeuble
+    if "sebastien" in ads or "faubourg" in ads: return "IMMEUBLE", "PLATRE", 4, 14
     if "pascal" in ads: return "IMMEUBLE", "BRIQUE", 6, 18
     if "general" in ads: return "IMMEUBLE", "BETON", 7, 20
-    return "IMMEUBLE", "PIERRE_TAILLE", 6, 16
+    
+    # Défaut
+    return "IMMEUBLE", "PIERRE", 6, 16
 
 # ==============================================================================
 # 4. INTERFACE UTILISATEUR
 # ==============================================================================
 
-# SESSION STATE
+# SESSIONS
 if 'addr_label' not in st.session_state: st.session_state.addr_label = ""
 if 'cam_h' not in st.session_state: st.session_state.cam_h = 0
 if 'cam_p' not in st.session_state: st.session_state.cam_p = 20
@@ -110,18 +114,20 @@ if 'cam_p' not in st.session_state: st.session_state.cam_p = 20
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("🎛️ Paramètres")
+    
     st.subheader("📷 Vue")
     c1, c2, c3 = st.columns(3)
     if c1.button("⬅️"): st.session_state.cam_h -= 45
     if c2.button("🔄"): st.session_state.cam_h += 180
     if c3.button("➡️"): st.session_state.cam_h += 45
     st.session_state.cam_p = st.slider("Inclinaison", -10, 60, st.session_state.cam_p)
+    
     st.divider()
     st.subheader("🏗️ Bâtiment")
     container_params = st.container()
 
 # --- MAIN ---
-st.title("🏢 Estimateur Libert V39 (Fast)")
+st.title("🏢 Estimateur Libert V40 (Final)")
 
 c_search, c_go = st.columns([3, 1])
 with c_search:
@@ -130,7 +136,8 @@ with c_search:
         features = get_adresses_api(query)
         if features:
             selected_label = st.selectbox("📍 Suggestions :", features, label_visibility="collapsed")
-            if selected_label != st.session_state.addr_label:
+            
+            if selected_label and selected_label != st.session_state.addr_label:
                 st.session_state.addr_label = selected_label
                 t, m, n, l = ia_init(selected_label)
                 st.session_state.ia_type = t
@@ -170,12 +177,14 @@ if st.session_state.addr_label:
         st.image(get_facade_image(st.session_state.addr_label, heading=st.session_state.cam_h, pitch=st.session_state.cam_p), use_column_width=True)
     with c_txt:
         st.subheader(st.session_state.addr_label)
+        
         k1, k2, k3 = st.columns(3)
         k1.metric("Surface", f"{s_calc} m²")
         k2.metric("Hauteur", f"{h_calc} m")
         k3.metric("Type", DB_PRIX["FACADES"][u_mat]["titre"])
 
-    # 3. CALCUL DEVIS
+    # 3. DEVIS
+    st.markdown("### 📑 Détail Estimatif")
     total = 0
     
     def add_line(cat, key, qte, unit=None):
@@ -192,8 +201,6 @@ if st.session_state.addr_label:
             st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
         return tot
 
-    st.markdown("### 📑 Détail Estimatif")
-
     # LOGISTIQUE
     st.markdown("#### 1. Logistique")
     if u_type == "PAVILLON": total += add_line("LOGISTIQUE", "ECHAFAUDAGE_PAV", s_calc)
@@ -208,7 +215,8 @@ if st.session_state.addr_label:
     # FAÇADE
     st.markdown("#### 2. Façade")
     prof = DB_PRIX["FACADES"][u_mat]
-    # Nettoyage manuel pour affichage
+    
+    # Nettoyage
     p_net = s_calc * prof['nettoyage']
     with st.container():
         c1, c2, c3 = st.columns([3, 1, 1])
@@ -218,8 +226,9 @@ if st.session_state.addr_label:
         st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
     total += p_net
     
+    # Piochage
     s_pioch = int(s_calc * prof['ratio_degats'])
-    if u_chiens > 0 and u_mat == "PLATRE_ANCIEN": s_pioch = int(s_calc * 0.60)
+    if u_chiens > 0 and u_mat == "PLATRE": s_pioch = int(s_calc * 0.60)
     p_pioch = s_pioch * prof['piochage']
     with st.container():
         c1, c2, c3 = st.columns([3, 1, 1])
@@ -229,6 +238,7 @@ if st.session_state.addr_label:
         st.markdown("<hr style='margin:5px 0; opacity:0.1'>", unsafe_allow_html=True)
     total += p_pioch
     
+    # Finition
     p_fin = s_calc * prof['finition']
     with st.container():
         c1, c2, c3 = st.columns([3, 1, 1])
