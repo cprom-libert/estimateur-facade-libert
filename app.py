@@ -2,47 +2,85 @@ import streamlit as st
 import time
 import requests
 
-# --- 1. CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V50 (Clean)", layout="wide", page_icon="🛡️")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="Rapport Technique Libert V51", layout="wide", page_icon="📐")
 
-# --- 2. API KEY ---
+# ==============================================================================
+# 1. SÉCURITÉ API
+# ==============================================================================
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except:
     GOOGLE_API_KEY = ""
 
-# --- 3. BASE DE DONNÉES PRIX (LIBERT 2025) ---
+# ==============================================================================
+# 2. BASE DE DONNÉES PRIX (STRUCTURE CORRIGÉE : ZINGUERIE & BOISERIE SÉPARÉES)
+# ==============================================================================
 DB_PRIX = {
     "LOGISTIQUE": {
-        "BASE_VIE": {"titre": "Installation de Chantier", "desc": "Base vie, Roulotte, WC, Cantonnement.", "norme": "Règl. Voirie", "pu": 4500.00, "unit": "Forfait"},
-        "AUTORISATION": {"titre": "Droits de Voirie (ODP)", "desc": "Redevance d'occupation domaine public.", "norme": "Admin", "pu": 605.00, "unit": "Forfait"},
-        "ECHAFAUDAGE": {"titre": "Échafaudage Classe 4", "desc": "Tubulaire fixe, calcul charge, filets.", "norme": "NF HD 1000", "pu": 39.90, "unit": "m²"},
-        "ECHAFAUDAGE_PAV": {"titre": "Échafaudage Léger", "desc": "Structure adaptée pavillon.", "norme": "NF", "pu": 28.00, "unit": "m²"},
-        "TUNNEL": {"titre": "Tunnel Piétons", "desc": "Protection étanche commerce.", "norme": "Sécurité", "pu": 65.00, "unit": "ml"},
-        "ALARME": {"titre": "Sécurisation Électronique", "desc": "Anti-intrusion 24/7.", "norme": "APSAD", "pu": 2070.00, "unit": "Forfait"},
-        "MAJORATION_HAUTEUR": {"titre": "Sujétions IGH", "desc": "Manutention > R+5.", "norme": "-", "pu": 15.00, "unit": "m²"}
+        "BASE_VIE": {"titre": "Installation de Chantier", "desc": "Mise en place base vie, roulotte, raccordements provisoires et protections.", "norme": "Règl. Voirie", "pu": 4500.00, "unit": "Forfait"},
+        "AUTORISATION": {"titre": "Droits de Voirie (ODP)", "desc": "Redevance d'occupation du domaine public (Provision).", "norme": "Admin", "pu": 605.00, "unit": "Forfait"},
+        "ECHAFAUDAGE": {"titre": "Échafaudage Classe 4", "desc": "Structure tubulaire fixe, calcul de charge, filets pare-gravats 160g.", "norme": "NF HD 1000", "pu": 39.90, "unit": "m²"},
+        "ECHAFAUDAGE_PAV": {"titre": "Échafaudage Léger", "desc": "Structure adaptée pour pavillon R+1/R+2.", "norme": "NF", "pu": 28.00, "unit": "m²"},
+        "TUNNEL": {"titre": "Tunnel Piétons", "desc": "Protection étanche au-dessus des commerces/entrées.", "norme": "Sécurité", "pu": 65.00, "unit": "ml"},
+        "ALARME": {"titre": "Sécurisation Électronique", "desc": "Système anti-intrusion 24/7 sur échafaudage.", "norme": "APSAD", "pu": 2070.00, "unit": "Forfait"},
+        "MAJORATION_HAUTEUR": {"titre": "Sujétions IGH", "desc": "Manutention et levage au-delà de R+5.", "norme": "-", "pu": 15.00, "unit": "m²"}
     },
     "FACADES": { 
-        "PLATRE_ANCIEN": {"titre": "Restauration Plâtre", "net": 16.50, "pioch": 160.00, "fin": 95.00, "ratio": 0.50, "desc": "Décapage + Purge lourde + Micro-mortier"},
-        "PIERRE_TAILLE": {"titre": "Ravalement Pierre", "net": 28.00, "pioch": 85.00, "fin": 48.00, "ratio": 0.10, "desc": "Hydrogommage + Ragréage + Minéralisation"},
-        "BRIQUE": {"titre": "Restauration Brique", "net": 35.00, "pioch": 120.00, "fin": 25.00, "ratio": 0.15, "desc": "Nettoyage chimique + Hydrofuge"},
-        "BETON": {"titre": "Ravalement D3", "net": 12.00, "pioch": 45.00, "fin": 58.00, "ratio": 0.05, "desc": "Lavage HP + Passivation + RPE Armé"},
-        "PAVILLON_ENDUIT": {"titre": "Ravalement Pavillon", "net": 18.00, "pioch": 45.00, "fin": 42.00, "ratio": 0.10, "desc": "Lavage + Reprise fissures + RPE"}
+        "PLATRE_ANCIEN": {
+            "titre": "Restauration Plâtre (Traditionnel)", 
+            "net": {"titre": "Décapage Chimique", "desc": "Élimination des badigeons par voie chimique biodégradable.", "pu": 16.50},
+            "pioch": {"titre": "Purge & Reconstitution", "desc": "Piochage des plâtres morts (Est. 50%) et réfection au plâtre gros.", "pu": 160.00},
+            "fin": {"titre": "Micro-Mortier Chaux", "desc": "Finition minérale respirante type Tilia/Légacalce.", "pu": 95.00},
+            "ratio_degats": 0.50
+        },
+        "PIERRE_TAILLE": { 
+            "titre": "Ravalement Pierre de Taille", 
+            "net": {"titre": "Hydrogommage Doux", "desc": "Projection basse pression d'abrasif neutre (Archifine).", "pu": 28.00},
+            "pioch": {"titre": "Ragréage Pierre", "desc": "Reconstitution des modénatures au mortier pierre.", "pu": 85.00},
+            "fin": {"titre": "Minéralisation", "desc": "Application d'un hydrofuge ou lasure minérale (Keim).", "pu": 48.00},
+            "ratio_degats": 0.10
+        },
+        "BRIQUE": { 
+            "titre": "Restauration Brique", 
+            "net": {"titre": "Nettoyage Chimique", "desc": "Nettoyage adapté briques rouges/jaunes.", "pu": 35.00},
+            "pioch": {"titre": "Remplacement Briques", "desc": "Changement éléments éclatés et rejointoiement.", "pu": 120.00},
+            "fin": {"titre": "Hydrofuge de surface", "desc": "Protection incolore contre les infiltrations.", "pu": 25.00},
+            "ratio_degats": 0.15
+        },
+        "BETON": { 
+            "titre": "Ravalement Technique D3", 
+            "net": {"titre": "Lavage Haute Pression", "desc": "Décrassage pollution et micro-organismes.", "pu": 12.00},
+            "pioch": {"titre": "Traitement des fers", "desc": "Passivation antirouille et reprise épaufrures.", "pu": 45.00},
+            "fin": {"titre": "Revêtement D3 Armé", "desc": "Système souple imperméable classe I3.", "pu": 58.00},
+            "ratio_degats": 0.05
+        },
+        "PAVILLON_ENDUIT": { 
+            "titre": "Ravalement Pavillon", 
+            "net": {"titre": "Lavage Façade", "desc": "Traitement anticryptogamique et lavage.", "pu": 18.00},
+            "pioch": {"titre": "Reprises Fissures", "desc": "Ouverture et pontage des fissures.", "pu": 45.00},
+            "fin": {"titre": "Peinture RPE", "desc": "Revêtement Plastique Épais taloché.", "pu": 42.00},
+            "ratio_degats": 0.10
+        }
     },
-    "FINITIONS": {
-        "APPUI": {"titre": "Appuis Zinc", "desc": "Façonnage bavette.", "norme": "DTU 40.5", "pu": 215.00, "unit": "U"},
-        "DESCENTE": {"titre": "Descentes EP", "desc": "Remplacement Zinc/Fonte.", "norme": "DTU 60.11", "pu": 165.00, "unit": "ml"},
-        "GARDE_CORPS": {"titre": "Peinture Fer", "desc": "Grattage, antirouille, laque.", "norme": "DTU 59.1", "pu": 160.00, "unit": "U"},
-        "BANDEAU": {"titre": "Bandeaux Zinc", "desc": "Protection corniches.", "norme": "DTU 40.5", "pu": 178.00, "unit": "ml"},
-        "CHIEN_ASSIS": {"titre": "Habillage Lucarne", "desc": "Rénovation zinc.", "norme": "-", "pu": 950.00, "unit": "U"},
-        "PORTE_COCHERE": {"titre": "Restauration Cochère", "desc": "Décapage, greffes, lasure.", "norme": "-", "pu": 3200.00, "unit": "U"},
-        "PORTE_ENTREE": {"titre": "Peinture Porte Hall", "desc": "Préparation et peinture.", "norme": "-", "pu": 850.00, "unit": "U"},
-        "DEBORD_TOIT": {"titre": "Lasure Débords", "desc": "Protection planches de rive.", "norme": "-", "pu": 45.00, "unit": "ml"}
+    # --- SECTIONS SÉPARÉES POUR ÉVITER LE KEY ERROR ---
+    "ZINGUERIE": {
+        "APPUI": {"titre": "Appuis de Fenêtre Zinc", "desc": "Façonnage et pose bavette avec larmier.", "norme": "DTU 40.5", "pu": 215.00, "unit": "U"},
+        "DESCENTE": {"titre": "Descentes EP", "desc": "Remplacement Zinc/Fonte avec dauphin.", "norme": "DTU 60.11", "pu": 165.00, "unit": "ml"},
+        "GARDE_CORPS": {"titre": "Peinture Ferronneries", "desc": "Grattage, antirouille et laque de finition.", "norme": "DTU 59.1", "pu": 160.00, "unit": "U"},
+        "BANDEAU": {"titre": "Bandeaux Zinc", "desc": "Protection des corniches saillantes.", "norme": "DTU 40.5", "pu": 178.00, "unit": "ml"},
+        "CHIEN_ASSIS": {"titre": "Habillage Lucarne", "desc": "Rénovation complète zinc et jouées.", "norme": "-", "pu": 950.00, "unit": "U"}
+    },
+    "BOISERIE": {
+        "PORTE_COCHERE": {"titre": "Restauration Porte Cochère", "desc": "Décapage, greffes bois et lasure/peinture.", "norme": "-", "pu": 3200.00, "unit": "U"},
+        "PORTE_ENTREE": {"titre": "Peinture Porte Hall", "desc": "Préparation et peinture glycérophtalique.", "norme": "-", "pu": 850.00, "unit": "U"},
+        "DEBORD_TOIT": {"titre": "Lasure Débords de Toit", "desc": "Protection des planches de rive.", "norme": "-", "pu": 45.00, "unit": "ml"}
     }
 }
 
-# --- 4. FONCTIONS TECHNIQUES ---
-
+# ==============================================================================
+# 3. MOTEUR TECHNIQUE
+# ==============================================================================
 def get_geo_data(adresse):
     try:
         r = requests.get(f"https://api-adresse.data.gouv.fr/search/?q={adresse}&limit=1").json()
@@ -52,7 +90,7 @@ def get_geo_data(adresse):
     except: return None, None
     return None, None
 
-def query_osm(lat, lon):
+def query_osm_real_data(lat, lon):
     query = f"""[out:json];(way["building"](around:20, {lat}, {lon}););out body;>;out skel qt;"""
     try:
         r = requests.get("http://overpass-api.de/api/interpreter", params={'data': query})
@@ -82,9 +120,10 @@ def get_street_view(lat, lon, heading, pitch):
         return f"https://maps.googleapis.com/maps/api/streetview?size=640x400&location={lat},{lon}&fov=80&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
     return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
-# --- 5. INTERFACE ---
+# ==============================================================================
+# 4. INTERFACE
+# ==============================================================================
 
-# Etats
 if 'step' not in st.session_state: st.session_state.step = 0
 if 'real_data' not in st.session_state: st.session_state.real_data = {}
 if 'addr_label' not in st.session_state: st.session_state.addr_label = ""
@@ -92,7 +131,7 @@ if 'gps' not in st.session_state: st.session_state.gps = (0,0)
 if 'cam_h' not in st.session_state: st.session_state.cam_h = 0
 if 'cam_p' not in st.session_state: st.session_state.cam_p = 10
 
-# CSS Rapport BET
+# CSS RAPPORT BET
 st.markdown("""
 <style>
     .report-container { background: white; padding: 40px; border: 1px solid #ddd; box-shadow: 0 0 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }
@@ -112,7 +151,7 @@ st.markdown("""
 
 # SIDEBAR
 with st.sidebar:
-    st.header("🎛️ Paramètres")
+    st.header("🎛️ Paramétrage")
     
     st.subheader("📷 Vue Façade")
     c1, c2, c3 = st.columns(3)
@@ -123,12 +162,12 @@ with st.sidebar:
     st.session_state.cam_p = st.slider("Inclinaison", -10, 60, st.session_state.cam_p)
     
     st.divider()
-    st.subheader("🏗️ Bâtiment")
+    st.subheader("🏗️ Données Bâtiment")
     params_container = st.container()
 
 # MAIN : RECHERCHE
 if st.session_state.step == 0:
-    st.title("📐 Estimateur Technique V50")
+    st.title("📐 Estimateur Technique V51")
     c1, c2 = st.columns([3, 1])
     q = c1.text_input("Adresse du projet :", placeholder="Ex: 159 rue du faubourg saint antoine...")
     
@@ -143,7 +182,7 @@ if st.session_state.step == 0:
                 lat, lon = get_geo_data(final_addr)
                 if lat:
                     st.session_state.gps = (lat, lon)
-                    st.session_state.real_data = query_osm(lat, lon)
+                    st.session_state.real_data = query_osm_real_data(lat, lon)
                     st.session_state.addr_label = final_addr
                     st.session_state.cam_h = 0
                     st.session_state.step = 1
@@ -176,7 +215,7 @@ if st.session_state.step == 1:
         
         has_toit = True if rd['toit'] > 0 else False
         u_chiens = st.number_input("Chiens-assis", value=(2 if has_toit else 0))
-        u_porte = st.selectbox("Porte", ["AUCUNE", "PORTE_COCHERE", "PORTE_ENTREE"])
+        u_porte = st.selectbox("Porte", ["PORTE_COCHERE", "PORTE_ENTREE", "AUCUNE"])
 
     # 2. CALCULS
     h_calc = u_niv * 3.0
@@ -202,7 +241,7 @@ if st.session_state.step == 1:
     # Photo
     lat, lon = st.session_state.gps
     img = get_street_view(lat, lon, st.session_state.cam_h, st.session_state.cam_p)
-    st.image(img, use_column_width=True)
+    st.image(img, use_container_width=True)
     
     # Infos
     titre_support = DB_PRIX['FACADES'][u_mat]['titre']
@@ -255,34 +294,27 @@ if st.session_state.step == 1:
     st.markdown('<div class="section-header">2. TRAITEMENT DES FAÇADES</div>', unsafe_allow_html=True)
     prof = DB_PRIX["FACADES"][u_mat]
     
-    t, h = html_line(f"Nettoyage ({u_mat})", "Préparation supports", "DTU 59.1", s_calc, "m²", prof["net"])
+    t, h = html_line(f"Nettoyage ({u_mat})", "Préparation supports", "DTU 59.1", s_calc, "m²", prof["net"]["pu"])
     total += t; st.markdown(h, unsafe_allow_html=True)
     
-    s_pioch = int(s_calc * prof["ratio"])
+    s_pioch = int(s_calc * prof["ratio_degats"])
     if u_chiens > 0 and u_mat == "PLATRE_ANCIEN": s_pioch = int(s_calc * 0.60)
-    t, h = html_line("Maçonnerie (Purge)", prof["desc"], "DTU 26.1", s_pioch, "m²", prof["pioch"])
+    t, h = html_line(prof["pioch"]["titre"], prof["pioch"]["desc"], "DTU 26.1", s_pioch, "m²", prof["pioch"]["pu"])
     total += t; st.markdown(h, unsafe_allow_html=True)
     
-    t, h = html_line("Finition Système", prof["desc"], "NF T 36-005", s_calc, "m²", prof["fin"])
+    t, h = html_line(prof["fin"]["titre"], prof["fin"]["desc"], "NF T 36-005", s_calc, "m²", prof["fin"]["pu"])
     total += t; st.markdown(h, unsafe_allow_html=True)
 
-    # C. Finitions (CORRECTION DE L'ERREUR ICI)
+    # C. Finitions (CORRECTION KEY ERROR ICI)
     st.markdown('<div class="section-header">3. FINITIONS & POINTS SINGULIERS</div>', unsafe_allow_html=True)
     
-    # Vérification stricte avant d'accéder à la clé
-    if u_porte != "AUCUNE" and u_porte in DB_PRIX["FINITIONS"]:
-        i = DB_PRIX["FINITIONS"][u_porte] # Utilisation de la section FINITIONS car j'y ai mis les portes dans la DB
-        # Note: Si vos portes sont dans BOISERIE, il faut changer DB_PRIX["BOISERIE"][u_porte]
-        # Dans V50, j'ai tout mis dans FINITIONS ou BOISERIE, vérifions la structure :
-        # Ah, dans le dict V50, j'ai mis les portes dans "BOISERIE". Je corrige l'accès :
-        pass 
-
-    # Correction accès Portes (Section BOISERIE)
+    # Porte (Section BOISERIE)
     if u_porte != "AUCUNE" and u_porte in DB_PRIX["BOISERIE"]:
         i = DB_PRIX["BOISERIE"][u_porte]
         t, h = html_line(i["titre"], i["desc"], "-", 1, "U", i["pu"])
         total += t; st.markdown(h, unsafe_allow_html=True)
     
+    # Pavillon (Section BOISERIE)
     if u_type == "PAVILLON":
         i = DB_PRIX["BOISERIE"]["DEBORD_TOIT"]
         t, h = html_line(i["titre"], i["desc"], "-", int(u_larg*4), "ml", i["pu"])
@@ -310,7 +342,7 @@ if st.session_state.step == 1:
         t, h = html_line(i["titre"], i["desc"], "-", u_chiens, "U", i["pu"])
         total += t; st.markdown(h, unsafe_allow_html=True)
 
-    # Total
+    # TOTAL
     st.markdown(f"""
     <div class="total-block">
         TOTAL ESTIMATIF HT : {total:,.2f} €
@@ -327,4 +359,4 @@ if st.session_state.step == 1:
         st.rerun()
 
 elif st.session_state.addr_label == "":
-    st.info("👈 Entrez une adresse pour commencer.")
+    st.info("👈 Entrez une adresse.")
