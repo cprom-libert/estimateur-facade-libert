@@ -3,7 +3,7 @@ import time
 import requests
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Rapport Technique Libert V48", layout="wide", page_icon="📐")
+st.set_page_config(page_title="Rapport Technique Libert V49", layout="wide", page_icon="📐")
 
 # ==============================================================================
 # 1. SÉCURITÉ API
@@ -14,9 +14,9 @@ except:
     GOOGLE_API_KEY = ""
 
 # ==============================================================================
-# 2. BASE DE DONNÉES TECHNIQUE & PRIX (LIBERT 2025)
+# 2. BASE DE PRIX CORRIGÉE (DB_PRIX)
 # ==============================================================================
-DB_BET = {
+DB_PRIX = {
     "LOGISTIQUE": {
         "BASE_VIE": {"titre": "Installation de Chantier", "desc": "Mise en place base vie, roulotte, raccordements provisoires et protections.", "norme": "Règl. Voirie", "pu": 4500.00, "unit": "Forfait"},
         "AUTORISATION": {"titre": "Droits de Voirie (ODP)", "desc": "Redevance d'occupation du domaine public (Provision).", "norme": "Admin", "pu": 605.00, "unit": "Forfait"},
@@ -135,7 +135,7 @@ if 'gps' not in st.session_state: st.session_state.gps = (0,0)
 if 'cam_h' not in st.session_state: st.session_state.cam_h = 0
 if 'cam_p' not in st.session_state: st.session_state.cam_p = 10
 
-# --- CSS POUR RAPPORT PAPIER ---
+# --- CSS POUR RAPPORT HTML (STYLE FACTURE) ---
 st.markdown("""
 <style>
     .report-container { background: white; padding: 40px; border: 1px solid #ddd; box-shadow: 0 0 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }
@@ -153,7 +153,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR (CONTROLES) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("🎛️ Paramétrage")
     
@@ -171,7 +171,7 @@ with st.sidebar:
 
 # --- MAIN ---
 if st.session_state.step == 0:
-    st.title("📐 Estimateur Technique V48")
+    st.title("📐 Estimateur Technique V49")
     c1, c2 = st.columns([3, 1])
     q = c1.text_input("Adresse du projet :", placeholder="Ex: 159 rue du faubourg saint antoine...")
     
@@ -205,9 +205,9 @@ if st.session_state.step == 1:
         if "sebastien" in ads or "faubourg" in ads: def_idx = 0
         elif "general" in ads: def_idx = 3
         
+        # Utilisation correcte de DB_PRIX
         u_mat = st.selectbox("Nature Support", list(DB_PRIX["FACADES"].keys()), index=def_idx)
         
-        # Immeuble ou Pavillon ?
         u_type = st.radio("Type", ["IMMEUBLE", "PAVILLON"], horizontal=True, index=0)
         
         val_niv = rd['niveaux'] if rd['niveaux'] > 0 else 5
@@ -228,7 +228,7 @@ if st.session_state.step == 1:
     if u_type == "PAVILLON": s_calc = int((u_larg * 4) * h_calc)
     nb_fen = int(s_calc / 12)
 
-    # 3. DOCUMENT TYPE "BET" (HTML PUR)
+    # 3. DOCUMENT (HTML)
     st.markdown(f"""
     <div class="report-container">
         <div class="report-header">
@@ -315,25 +315,31 @@ if st.session_state.step == 1:
         i = DB_PRIX["BOISERIE"][u_porte]
         t, h = html_line(i["titre"], i["desc"], "-", 1, "U", i["pu"])
         total += t; st.markdown(h, unsafe_allow_html=True)
+    
+    # Débords de toit pour pavillon
+    if u_type == "PAVILLON":
+        i = DB_PRIX["BOISERIE"]["DEBORD_TOIT"]
+        t, h = html_line(i["titre"], i["desc"], "-", int(u_larg*4), "ml", i["pu"])
+        total += t; st.markdown(h, unsafe_allow_html=True)
         
-    i = DB_PRIX["ZINGUERIE"]["APPUI"]
+    i = DB_PRIX["FINITIONS"]["APPUI"]
     t, h = html_line(i["titre"], i["desc"], "DTU 40.5", nb_fen, "U", i["pu"])
     total += t; st.markdown(h, unsafe_allow_html=True)
     
-    i = DB_PRIX["ZINGUERIE"]["DESCENTE"]
+    i = DB_PRIX["FINITIONS"]["DESCENTE"]
     t, h = html_line(i["titre"], i["desc"], "DTU 60.11", int(h_calc), "ml", i["pu"])
     total += t; st.markdown(h, unsafe_allow_html=True)
     
     if u_type == "IMMEUBLE":
-        i = DB_PRIX["ZINGUERIE"]["BANDEAU"]
+        i = DB_PRIX["FINITIONS"]["BANDEAU"]
         t, h = html_line(i["titre"], i["desc"], "DTU 40.5", int(u_larg*2), "ml", i["pu"])
         total += t; st.markdown(h, unsafe_allow_html=True)
-        i = DB_PRIX["ZINGUERIE"]["GARDE_CORPS"]
+        i = DB_PRIX["FINITIONS"]["GARDE_CORPS"]
         t, h = html_line(i["titre"], i["desc"], "DTU 59.1", int(nb_fen*0.7), "U", i["pu"])
         total += t; st.markdown(h, unsafe_allow_html=True)
         
     if u_chiens > 0:
-        i = DB_PRIX["ZINGUERIE"]["CHIEN_ASSIS"]
+        i = DB_PRIX["FINITIONS"]["CHIEN_ASSIS"]
         t, h = html_line(i["titre"], i["desc"], "-", u_chiens, "U", i["pu"])
         total += t; st.markdown(h, unsafe_allow_html=True)
 
