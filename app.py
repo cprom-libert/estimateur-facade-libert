@@ -147,9 +147,10 @@ def get_adresses_api(query):
     except: return []
 
 def get_street_view(lat, lon, heading, pitch):
-    """Génère l'URL Google Street View"""
+    """Génère l'URL Google Street View en HD"""
     if GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 10:
-        return f"https://maps.googleapis.com/maps/api/streetview?size=640x400&location={lat},{lon}&fov=80&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
+        # Changement ici : passage de size=640x400 à size=2048x1200 pour la HD
+        return f"https://maps.googleapis.com/maps/api/streetview?size=2048x1200&location={lat},{lon}&fov=80&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
     return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
 # ==============================================================================
