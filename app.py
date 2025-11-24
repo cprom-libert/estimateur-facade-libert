@@ -4,7 +4,7 @@ import requests
 import math
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Estimateur Libert V54 (Hybride)", layout="wide", page_icon="📐")
+st.set_page_config(page_title="Rapport Libert V55", layout="wide", page_icon="📐")
 
 # ==============================================================================
 # 1. SÉCURITÉ API
@@ -15,7 +15,7 @@ except:
     GOOGLE_API_KEY = ""
 
 # ==============================================================================
-# 2. BASE DE PRIX (V52)
+# 2. BASE DE PRIX (V52 - VALIDÉE)
 # ==============================================================================
 DB_PRIX = {
     "LOGISTIQUE": {
@@ -79,14 +79,14 @@ DB_PRIX = {
 }
 
 # ==============================================================================
-# 3. MOTEUR "GOOGLE NATIVE" (V53) & OSM
+# 3. MOTEUR TECHNIQUE (V53 GOOGLE NATIVE)
 # ==============================================================================
 
 def get_google_geocode(address):
-    """Récupère les coordonnées exactes via Google Geocoding"""
+    """Localisation précise via Google"""
     if not GOOGLE_API_KEY: return None, None
-    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={GOOGLE_API_KEY}"
     try:
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={GOOGLE_API_KEY}"
         r = requests.get(url).json()
         if r['status'] == 'OK':
             loc = r['results'][0]['geometry']['location']
@@ -95,32 +95,28 @@ def get_google_geocode(address):
     return None, None
 
 def get_smart_heading(lat_bat, lon_bat):
-    """Calcule l'angle idéal pour regarder le bâtiment"""
+    """Calcul automatique de l'angle de vue"""
     if not GOOGLE_API_KEY: return 0
-    
-    # 1. Où est la voiture ?
-    meta_url = f"https://maps.googleapis.com/maps/api/streetview/metadata?location={lat_bat},{lon_bat}&key={GOOGLE_API_KEY}"
     try:
+        meta_url = f"https://maps.googleapis.com/maps/api/streetview/metadata?location={lat_bat},{lon_bat}&key={GOOGLE_API_KEY}"
         meta = requests.get(meta_url).json()
         if meta['status'] == 'OK':
             lat_car = meta['location']['lat']
             lon_car = meta['location']['lng']
             
-            # 2. Calcul Trigonométrique (Bearing)
             dLon = math.radians(lon_bat - lon_car)
             lat1 = math.radians(lat_car)
             lat2 = math.radians(lat_bat)
-            
             y = math.sin(dLon) * math.cos(lat2)
             x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon)
             
             bearing = math.degrees(math.atan2(y, x))
             return (bearing + 360) % 360
     except: pass
-    return 0 # Défaut
+    return 0
 
 def query_osm_real_data(lat, lon):
-    """Interroge OpenStreetMap"""
+    """Données bâtimentaires OSM"""
     query = f"""[out:json];(way["building"](around:20, {lat}, {lon}););out body;>;out skel qt;"""
     try:
         r = requests.get("http://overpass-api.de/api/interpreter", params={'data': query})
@@ -139,22 +135,25 @@ def query_osm_real_data(lat, lon):
     return {"niveaux": 0, "toit": 0, "commerce": False, "annee": "Inconnue"}
 
 def get_adresses_api(query):
-    """Autocomplétion (Garde l'API FR pour l'UI car gratuite et rapide)"""
+    """Autocomplétion (UI)"""
     if len(query) < 3: return []
     try:
         r = requests.get(f"https://api-adresse.data.gouv.fr/search/?q={query}&limit=5")
         return [f['properties']['label'] for f in r.json()['features']]
     except: return []
 
-def get_street_view(lat, lon, heading, pitch):
-    """Génère l'URL Google Street View en HD"""
+def get_street_view_hd(lat, lon, heading, pitch):
+    """
+    Génère l'URL HD.
+    size=1200x600 permet d'avoir de la HD tout en gardant un format panoramique (2:1)
+    qui ne prend pas trop de hauteur verticale.
+    """
     if GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 10:
-        # Changement ici : passage de size=640x400 à size=2048x1200 pour la HD
-        return f"https://maps.googleapis.com/maps/api/streetview?size=2048x1200&location={lat},{lon}&fov=80&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
+        return f"https://maps.googleapis.com/maps/api/streetview?size=1200x600&location={lat},{lon}&fov=80&heading={heading}&pitch={pitch}&key={GOOGLE_API_KEY}"
     return "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Immeuble_parisien.jpg/800px-Immeuble_parisien.jpg"
 
 # ==============================================================================
-# 4. INTERFACE (V52 Style)
+# 4. INTERFACE & SESSION
 # ==============================================================================
 
 if 'step' not in st.session_state: st.session_state.step = 0
@@ -164,44 +163,51 @@ if 'gps' not in st.session_state: st.session_state.gps = (0,0)
 if 'cam_h' not in st.session_state: st.session_state.cam_h = 0
 if 'cam_p' not in st.session_state: st.session_state.cam_p = 10
 
-# CSS STYLE BET
+# CSS CSS CSS : Le secret pour une belle image qui ne dépasse pas
 st.markdown("""
 <style>
-    .report-container { background: white; padding: 40px; border: 1px solid #ddd; box-shadow: 0 0 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }
+    .report-container { background: white; padding: 0px; border: 1px solid #ddd; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; overflow: hidden; border-radius: 8px; }
+    
+    /* L'image est maintenant une bannière propre */
+    .report-banner { width: 100%; height: 350px; object-fit: cover; display: block; border-bottom: 5px solid #2c3e50; }
+    
+    .report-content { padding: 40px; }
     .report-header { display: flex; justify-content: space-between; border-bottom: 2px solid #2c3e50; padding-bottom: 20px; margin-bottom: 20px; }
-    .report-title { color: #2c3e50; font-size: 24px; font-weight: bold; }
-    .report-meta { text-align: right; font-size: 12px; color: #666; }
-    .section-header { background: #f4f6f7; padding: 8px 15px; font-weight: bold; color: #2c3e50; border-left: 5px solid #e67e22; margin-top: 20px; font-size: 14px; }
-    .line-item { display: flex; justify-content: space-between; padding: 8px 15px; border-bottom: 1px solid #eee; font-size: 13px; }
+    .report-title { color: #2c3e50; font-size: 26px; font-weight: bold; }
+    .report-meta { text-align: right; font-size: 13px; color: #666; line-height: 1.5; }
+    .section-header { background: #f4f6f7; padding: 10px 15px; font-weight: bold; color: #2c3e50; border-left: 5px solid #e67e22; margin-top: 25px; font-size: 15px; }
+    .line-item { display: flex; justify-content: space-between; padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 13px; align-items: center; }
     .line-desc { flex: 3; }
-    .line-qty { flex: 1; text-align: center; }
-    .line-price { flex: 1; text-align: right; font-weight: bold; }
-    .total-block { background: #2c3e50; color: white; padding: 15px; text-align: right; font-size: 18px; font-weight: bold; margin-top: 30px; }
-    .tech-detail { font-size: 11px; color: #666; font-style: italic; display: block; }
-    @media print { .stSidebar, .stButton, .stTextInput { display: none; } }
+    .line-qty { flex: 1; text-align: center; white-space: nowrap; }
+    .line-price { flex: 1; text-align: right; font-weight: bold; white-space: nowrap; }
+    .total-block { background: #2c3e50; color: white; padding: 20px; text-align: right; font-size: 20px; font-weight: bold; margin-top: 30px; border-radius: 4px; }
+    .tech-detail { font-size: 11px; color: #7f8c8d; font-style: italic; display: block; margin-top: 2px; }
+    
+    /* Masquer les éléments Streamlit à l'impression */
+    @media print { .stSidebar, .stButton, .stTextInput { display: none; } .report-container { box-shadow: none; border: none; } }
 </style>
 """, unsafe_allow_html=True)
 
 # SIDEBAR
 with st.sidebar:
-    st.header("🎛️ Paramétrage")
+    st.header("🎛️ Paramètres")
     
-    st.subheader("📷 Vue Façade")
+    st.subheader("📷 Ajustement Vue")
     c1, c2, c3 = st.columns(3)
     def rot(a): st.session_state.cam_h = (st.session_state.cam_h + a) % 360
     if c1.button("⬅️"): rot(-45)
     if c2.button("🔄"): rot(180)
     if c3.button("➡️"): rot(45)
     st.session_state.cam_p = st.slider("Inclinaison", -10, 60, st.session_state.cam_p)
-    st.caption(f"Angle actuel : {int(st.session_state.cam_h)}°")
+    st.caption(f"Angle : {int(st.session_state.cam_h)}°")
     
     st.divider()
-    st.subheader("🏗️ Données Bâtiment")
+    st.subheader("🏗️ Bâtiment")
     params_container = st.container()
 
-# MAIN : RECHERCHE
+# MAIN
 if st.session_state.step == 0:
-    st.title("📐 Estimateur Libert V54 (Hybride)")
+    st.title("📐 Estimateur Libert V55 (Clean)")
     c1, c2 = st.columns([3, 1])
     q = c1.text_input("Adresse du projet :", placeholder="Ex: 159 rue du faubourg saint antoine...")
     
@@ -212,31 +218,23 @@ if st.session_state.step == 0:
 
     if c2.button("GÉNÉRER RAPPORT", type="primary"):
         if final_addr:
-            with st.spinner("Localisation Google & Analyse Bâtimentaire..."):
-                # --- CHANGEMENT V53 ICI : UTILISATION DE GOOGLE GEOCODING ---
-                lat, lon = get_google_geocode(final_addr)
-                
+            with st.spinner("Analyse..."):
+                lat, lon = get_google_geocode(final_addr) # V53 Logic
                 if lat:
                     st.session_state.gps = (lat, lon)
-                    
-                    # --- CHANGEMENT V53 ICI : CALCUL D'ANGLE AUTOMATIQUE ---
-                    smart_heading = get_smart_heading(lat, lon)
-                    st.session_state.cam_h = smart_heading
-                    
+                    st.session_state.cam_h = get_smart_heading(lat, lon) # V53 Logic
                     st.session_state.real_data = query_osm_real_data(lat, lon)
                     st.session_state.addr_label = final_addr
                     st.session_state.step = 1
                     st.rerun()
                 else:
-                    st.error("Google ne trouve pas cette adresse. Vérifiez que l'API Geocoding est activée.")
-        else:
-            st.warning("Veuillez sélectionner une adresse.")
+                    st.error("Google ne trouve pas l'adresse. Vérifiez votre clé API Geocoding.")
 
-# MAIN : RAPPORT (IDENTIQUE V52)
+# RAPPORT
 if st.session_state.step == 1:
     rd = st.session_state.real_data
     
-    # 1. REGLAGES DYNAMIQUES
+    # PARAMETRES
     with params_container:
         ads = st.session_state.addr_label.lower()
         def_idx = 1 
@@ -258,45 +256,51 @@ if st.session_state.step == 1:
         u_chiens = st.number_input("Chiens-assis", value=(2 if has_toit else 0))
         u_porte = st.selectbox("Porte", ["PORTE_COCHERE", "PORTE_ENTREE", "AUCUNE"])
 
-    # 2. CALCULS
+    # CALCULS
     h_calc = u_niv * 3.0
     s_calc = int(h_calc * u_larg)
     if u_type == "PAVILLON": s_calc = int((u_larg * 4) * h_calc)
     nb_fen = int(s_calc / 12)
 
-    # 3. RAPPORT HTML
+    # GENERATION IMAGE HD
+    lat, lon = st.session_state.gps
+    img_url = get_street_view_hd(lat, lon, st.session_state.cam_h, st.session_state.cam_p)
+
+    # CORPS DU DOCUMENT HTML
+    # Notez l'usage de la balise <img> avec la classe .report-banner définie dans le CSS
     st.markdown(f"""
     <div class="report-container">
-        <div class="report-header">
-            <div>
-                <div class="report-title">RAPPORT D'ESTIMATION</div>
-                <div>LIBERT & CIE - Département Façades</div>
+        <img src="{img_url}" class="report-banner">
+        
+        <div class="report-content">
+            <div class="report-header">
+                <div>
+                    <div class="report-title">RAPPORT D'ESTIMATION</div>
+                    <div style="font-weight:bold; color:#e67e22; margin-top:5px;">LIBERT & CIE - Département Façades</div>
+                </div>
+                <div class="report-meta">
+                    <b>Date :</b> {time.strftime("%d/%m/%Y")}<br>
+                    <b>Référence :</b> {int(time.time())}<br>
+                    {st.session_state.addr_label}
+                </div>
             </div>
-            <div class="report-meta">
-                Date : {time.strftime("%d/%m/%Y")}<br>
-                {st.session_state.addr_label}
+            
+            <div style="background:#f8f9fa; padding:15px; border-radius:5px; border:1px solid #eee; margin-bottom:20px; font-size:13px;">
+                📍 <b>Caractéristiques :</b> {u_type} &nbsp;|&nbsp; 
+                Hauteur {h_calc}m (R+{u_niv-1}) &nbsp;|&nbsp; 
+                Surface {s_calc} m² &nbsp;|&nbsp; 
+                Support : <b>{DB_PRIX['FACADES'][u_mat]['titre']}</b>
             </div>
-        </div>
     """, unsafe_allow_html=True)
 
-    # Photo (Utilise le Heading Google ou Manuel)
-    lat, lon = st.session_state.gps
-    img = get_street_view(lat, lon, st.session_state.cam_h, st.session_state.cam_p)
-    st.image(img, use_container_width=True)
-    
-    # Infos
-    titre_support = DB_PRIX['FACADES'][u_mat]['titre']
-    st.info(f"📍 **Caractéristiques :** {u_type} | Hauteur {h_calc}m (R+{u_niv-1}) | Surface {s_calc} m² | Support : {titre_support}")
-
-    # Devis Génération
+    # GENERATEUR DE LIGNES
     total = 0
-    
     def html_line(titre, desc, norme, qte, unit, pu):
         tot = qte * pu
         return tot, f"""
         <div class="line-item">
             <div class="line-desc">
-                <b>{titre}</b> <span style="color:#e67e22;">[{norme}]</span>
+                <b>{titre}</b> <span style="color:#e67e22; font-size:11px;">[{norme}]</span>
                 <span class="tech-detail">{desc}</span>
             </div>
             <div class="line-qty">{int(qte)} {unit}</div>
@@ -304,7 +308,7 @@ if st.session_state.step == 1:
         </div>
         """
 
-    # A. Logistique
+    # SECTION 1
     st.markdown('<div class="section-header">1. INSTALLATION DE CHANTIER & SÉCURITÉ</div>', unsafe_allow_html=True)
     if u_type == "PAVILLON":
         i = DB_PRIX["LOGISTIQUE"]["ECHAFAUDAGE_PAV"]
@@ -331,7 +335,7 @@ if st.session_state.step == 1:
             t, h = html_line(i["titre"], i["desc"], i["norme"], s_calc, "m²", i["pu"])
             total += t; st.markdown(h, unsafe_allow_html=True)
 
-    # B. Façade
+    # SECTION 2
     st.markdown('<div class="section-header">2. TRAITEMENT DES FAÇADES</div>', unsafe_allow_html=True)
     prof = DB_PRIX["FACADES"][u_mat]
     
@@ -346,7 +350,7 @@ if st.session_state.step == 1:
     t, h = html_line(prof["fin"]["titre"], prof["fin"]["desc"], "NF T 36-005", s_calc, "m²", prof["fin"]["pu"])
     total += t; st.markdown(h, unsafe_allow_html=True)
 
-    # C. Finitions
+    # SECTION 3
     st.markdown('<div class="section-header">3. FINITIONS & POINTS SINGULIERS</div>', unsafe_allow_html=True)
     
     if u_porte != "AUCUNE" and u_porte in DB_PRIX["BOISERIE"]:
@@ -382,14 +386,14 @@ if st.session_state.step == 1:
 
     # TOTAL
     st.markdown(f"""
-    <div class="total-block">
-        TOTAL ESTIMATIF HT : {total:,.2f} €
-    </div>
-    <div style="text-align:center; margin-top:20px; font-size:11px; color:#999;">
-        Ce document est une estimation budgétaire générée automatiquement. Il ne remplace pas un devis contradictoire établi après visite technique sur site.
-    </div>
-    </div>
-    """, unsafe_allow_html=True)
+            <div class="total-block">
+                TOTAL ESTIMATIF HT : {total:,.2f} €
+            </div>
+            <div style="text-align:center; margin-top:30px; font-size:11px; color:#999; border-top:1px solid #eee; padding-top:10px;">
+                Ce document est une estimation budgétaire générée automatiquement par l'IA Libert. <br>
+                Il ne remplace pas un devis contradictoire établi après visite technique sur site.
+            </div>
+        </div> </div> """, unsafe_allow_html=True)
     
     st.write("")
     if st.button("🔄 Nouvelle Estimation"):
